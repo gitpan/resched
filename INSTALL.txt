@@ -1,0 +1,113 @@
+Perhaps eventually there could be an install-and-configure script, but
+for the time being this is just an attempt to document what needs to
+be done when installing this software.
+
+ 1. Unzip the downloaded resched software in a suitable location.
+    Issue any necessary chmod commands to ensure that the web server
+    user can access the files and execute the cgi scripts.  For
+    security reasons, it is probably best to chmod ugo-x dbconfig.pl
+
+    Note that as of version 0.7.0, each release now unzips into a
+    version-numbered directory.  (This is so that sites doing an
+    upgrade do not inadvertently wipe out their production
+    installation before they are ready.)  You can rename this
+    directory to remove the version number, or create a symbolic link,
+    or just copy or move the contents into the actual destination.
+
+ 2. Ensure that you have the prerequisite software installed.
+   * You need an RDBMS.  At this time MySQL is the only one supported,
+     though it would probably only require minor changes (in db.pl)
+     to support Postgres or any other reasonably capable DBMS.
+   * You need a web server, of course.  I've only tested with apache.
+     The web server must be configured to serve out the directory
+     where you unzipped resched, and the .cgi extension must be
+     associated with Perl.
+   * Speaking of which, you need Perl, and at least the following
+     modules (available from the CPAN): DateTime, DateTime::Span,
+     DateTime::Format::MySQL, DBI, DBD::mysql, Taint, Carp,
+     HTML::Entities, Data::Dumper (for debugging), and possibly one
+     or two others I'm forgetting.
+
+ 3. Open ajax.js in a text editor and change the baseuri variable
+    (on the second line) so that it contains the public URI of the
+    dynamic-info.cgi file on your installation.
+
+ 4. Open dbconfig.pl in a text editor and assign suitable values
+    to the four variables therein.  (If dbconfig.pl does not
+    exist, copy dbconfig.pl.sample.)
+
+ 5. Log into the RDBMS as a privileged user (e.g., root), create the
+    database you specified in dbconfig.pl, and grant all privileges on
+    that database to the user you specified in dbconfig.pl.  The SQL to
+    do this will probably look something like the following:
+    CREATE DATABSE resched;
+    GRANT ALL PRIVILEGES ON resched.* TO username@localhost
+          IDENTIFIED BY 'somepassword';
+
+ 6. Also, if you have not already done so, check that the
+    MySQL root user account is password protected.
+
+ 7. Run the create-tables.pl Perl script.  This will create
+    the empty database tables.
+
+ 8. Create at least one user record in the users table, which you and
+    your users will use to log into the web interface.  (Even if you
+    are doing authentication by IP address, as we do, you still need a
+    user account.  The IP auth logs users in automatically based on
+    their network address, but it still needs a user account to log
+    them into.)  Authentication by IP address is probably not real
+    secure, but my users would never put up with needing Yet Another
+    Password for this.
+
+ 9. If you want to do authentication by IP address, create the
+    appropriate record(s) in the auth_by_ip table.  Each IP address
+    should be in the same notation the web server gives it to you
+    in, in $ENV{REMOTE_ADDR}.  For Apache, this is standard dotted
+    quad notation (for IPv4; not sure about IPv6).  The user field
+    needs an id from the users table.
+
+10. Create at least one schedule record in the resched_schedules
+    table.  Multiple resources (e.g., rooms, computers) can be
+    booked according to the same schedule, so you may only need
+    one schedule record, depending on your needs.  The schedule
+    record tells what time of day you start booking, and describes
+    the positions and lengths of the booking timeslots.  The
+    durationmins field tells how long you normally book for at
+    a time.  (This is just the default, unless durationlock is
+    nonzero.)  The intervalmins controls where your bookable
+    timeslots occur, and should either be equal to durationmins,
+    or a factor of it.  For example, if you book for an hour at
+    a time but allow bookings to start at any quarter-hour, you
+    would set durationmins to 60 and intervalmins to 15.
+
+11. For each resource you want to take bookings for, create a record
+    in the resched_resources table.  The name should be a human
+    readable name for the resource (e.g., "Room 101").  The schedule
+    field should be the id of a record in the resched_schedules table.
+    The optional switchwith field takes a comma-separated list of the
+    IDs of other resources you want to allow to have their bookings
+    switched with this one.  The optional showwith field, similarly,
+    takes a list of other resources to show alongside this one.  The
+    requireinitials and requirenotes fields are effectively boolean;
+    if true, the resource cannot be booked without specifying staff
+    initials and/or notes, respectively.
+
+12. You don't need to create any booking records, alias records, or
+    authcookies records up front.  The software will create those as
+    you use it.
+
+13. You need certain entries in the misc_variables table.  Either
+    insert them into the database by hand, or use config.cgi to do so.
+    Afteward you may want to chmod -x config.cgi if you don't trust
+    your users (though there are no links to it, so it will hopefully
+    not be accidentally found by most ordinary users).
+
+14. For this version, there are going to be a few code changes you
+    need to make, since a lot of stuff is hardcoded that shouldn't be.
+    (I wrote a lot of this code several years ago, and had no idea
+    that I would ever be sharing it.)  Hopefully over the next few
+    releases most of that will get moved out to a config file or
+    database table.  As of now, I don't even have a list of it all,
+    though TODO.txt might give you some clues.  But you may just about
+    be able to start testing your local installation at this point.
+

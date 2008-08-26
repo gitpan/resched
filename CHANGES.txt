@@ -1,0 +1,292 @@
+See also TODO.txt
+Version 0.7.0:
+  * Removed DBConfig.pm, which was no longer being used by
+    anything.  (Actually, I think DBConfig.pm and Auth.pm
+    may have only ever been used by the 'events' stuff,
+    which is no longer even used in Galion and was never
+    a part of the public release in any case.)  I am pretty
+    sure that's the last of the Class::DBI stuff, so I
+    removed that module from the list in INSTALL.txt.
+  * Added the ils_name variable, which is used in two places
+    (both having to do with aliases -- the canonical name
+    should be spelled the same way as in the ILS).
+  * config.cgi now displays the variables in a logical
+    (rather than alphabetical) order.  Also, most of the
+    included stylesheets now put a visible border between
+    them, so that the user can more easily tell where the
+    explanation for each one ends and the next begins.
+  * Made time_zone a variable (previously it was hardcoded).
+  * Corrected a statement in TODO.txt regarding what would
+    be needed for Postgres support.
+  * Released 2008 August 5 (yes, two releases in one day).
+Version 0.6.9:
+  * Added the misc_variables table, for storing variables that
+    are specific to a particular site.
+  * Added the getvariable and setvariable routines to db.pl
+  * Added config.cgi to make it easier to set up these variables.
+    The sysadmin can always chmod -x it if he's worried about
+    users messing it up.
+  * Added support for the following variables:  sysadmin_name,
+    url_base (but, ajax.js still has it hardcoded), and
+    sidebar_post_today
+  * Removed Auth.pm, which, as it turns out, nothing is still
+    using at this point.
+  * Added the auth_by_ip table, with support in auth.pl
+  * Updated INSTALL.txt to account for the above changes.
+  * Released 2008 August 5.
+Version 0.6.8:
+  * Factored the AJAX javascript out to ajax.js, in preparation for
+    working in the forum software version's improvements (e.g., to
+    support MSIE).  Did not actually do that yet, this is just a
+    preparatory step.
+  * Added INSTALL.txt with basic install instructions.  These have
+    not yet been tested but should be a real good starting point.
+  * Released 2008 August 1.
+Version 0.6.7:
+  * Removed %fieldname from include.pl (a holdover from the
+    inventory tracking tool, which somehow got carried over,
+    discovered when I was sanitizing the resched code for
+    public distribution).
+  * Removed some things that were highly specific to the Galion Public
+    Library, in preparation for public release.
+  * Released 2008 July 31.
+Version 0.6.6:
+  * Fixed a long-standing bug in usersidebar that was causing
+    the This Same Day section to appear whenever the date
+    being viewed defaulted to the current date (by not being
+    specified in the query args).
+  * Deployed 2008 July 24.
+Version 0.6.5:
+  * Made houroptions put "am" on morning hours, per the request
+    of the downstairs staff, see bug 187,
+    http://localhost/bugzilla/show_bug.cgi?id=187
+  * Changed the list of links under This Same Day / These Same Days.
+    Instead of listing individual resources (which you can get
+    anyway by clicking the column headers) it now lists only the
+    broad categories.  This makes the list considerably shorter,
+    which pulls Today above the fold in most cases.  See bug 167,
+    http://localhost/bugzilla/show_bug.cgi?id=187
+  * Deployed 2008 July 21.
+Version 0.6.4:
+  * The table is now preceded by a line that tells the current
+    time on the server.
+  * added washbookingrecord() to db.pl to clear up persistent 
+    bug wherein fromtime_datetime and util_datetime didn't
+    get cleared out of a record before updaterecord was called,
+    resulting in error messages about not being able to update
+    the non-existent field.
+  * Deployed 2008 June 27.
+Version 0.6.3:
+  * When a booking is created, the bookedfor name _as typed_ is
+    preserved in the notes, in parentheses, if it does not match
+    what actually goes into the bookedfor field (e.g. due to an alias).
+    http://10.0.0.21/bugzilla/show_bug.cgi?id=162
+  * Adjusted the wording in a couple of error messages.
+  * Updated handleResponse to call retrieveupdates() if it gets
+    an updatecount element in the response.  Note that the retrieveupdates()
+    function is NOT defined in include.pl, as it might be different depending
+    on the page that is being updated.
+  * If dynamic-info.cgi gets an updates-p request, it checks for
+    updates.  If there are any, it sends an updatescount element.
+    Otherwise it sends a success element saying there are none.
+    (No action needs to be taken in the latter case.)  Note that
+    the only kind of new updates checked for at this point are
+    new bookings.  Changes and cancellations are not considered.
+  * When index.cgi generates a view page, it includes a suitable
+    retrieveupdates function and calls window.setInterval to issue
+    an asynchronous updates check request every two minutes.
+  * The net result of all that is that if a new booking is
+    created for one of the resources that you're currently
+    looking at on a view page, within two minutes you'll
+    get an updated view even if you don't do anything.
+    http://10.0.0.21/bugzilla/show_bug.cgi?id=165
+  * Deployed 2008 Mar 18.    
+Version 0.6.2:
+  * Fixed a bug in frequent user lookup that was causing no records to be
+    found when restricting to certain resources (as opposed to "anything").
+  * Added meta-counting to frequent user lookup, which is useful when
+    you're looking up people who booked at least 1 times (e.g., for
+    statistical purposes).
+  * Added link in the sidebar to the QuickNet control facility.
+  * Deployed 2008 Mar 07.
+Version 0.6.1:
+  * Added funwithfont.css, which uses different fonts for different resources.
+    This is intended solely for my own use, since I normally keep page colors
+    disabled, so I otherwise miss the benefits of the new style system.
+    Note that many of the fonts it uses are obscure and unlikely to be
+    installed on other systems, but they are available on my workstation.
+  * Fixed a bug in usage stats gathering.  (It was failing to take account
+    of the added internet station and the accompanying renumbering.)
+  * When a booking is successfully extended, a redirect header is issued
+    with a thirty-second delay, so that somebody won't walk up to the
+    computer minutes later, hit reload, and extend the booking _again_
+    without meaning to do so.  (If they _intend_ to extend it again, the
+    extend link should still be there.)
+  * Fixed extendbooking to kludge %input better so that the correct day's
+    table is displayed if a non-today booking is extended.  (I was noticing
+    this when extending computer class bookings.  I suspect none of the
+    other staff were seeing it, because it's a real corner case.  Anyway,
+    it's fixed now.)
+  * If a name _has_ aliases, this fact is displayed on the booking edit
+    form, linked to an alias search that will display them.
+    http://10.0.0.21/bugzilla/show_bug.cgi?id=159
+  * Deployed 2008 February 22.    
+Version 0.6.0:
+  * More double-quote refactoring.
+  * Improved the alias search so that it finds more results.  In particular,
+    it now always does a substring search (rather than trying an exact match
+    search first and stopping if successful).  Also, it looks in the canon
+    field, as well as the alias field, and unifies the results.
+  * Refactored search-results generation out to a subroutine, searchresults,
+    to get that logic out of the big elsif($input{foo}) chain.  There are
+    some other things too that need to be refactored out of there to their
+    own subroutines, but that was the first one.
+  * Refactored alias updating out to the updatealias subroutine.
+  * Moved isalias, dealias, normalisebookedfor, and capitalise into include.pl
+    As a result they are now in the include:: namespace, but also they are now
+    accessible to dynamic-info.cgi
+  * showbooking in dynamic-info.cgi now normalises (etc) the bookedfor field.
+  * Implemented AJAXified done-early feature.
+  * Followup bookings now have the name normalised and dealiased.
+    This was neglected previously.
+  * Added a couple of testing options to the Special Testing Zone.
+  * Cleaned out some old debugging cruft that's no longer needed.
+  * Cleaned out references to stylepics, which is no longer needed since
+    the stylesheet overhaul.
+  * Booking search results now use resource classes (res16 etc),
+    so they get the styling.  I added styles for the practice zone
+    resources.
+  * Deployed 2007 Dec 27.
+Version 0.5.9:
+  * Worked some more on the quoted-string refactoring (see under the
+    changes for version 0.5.6).  Still need to do more of this.
+  * Added UI for creating a new alias, in the Aliases sidebar section.
+  * Added "mark this name as an alias" link next to bookedfor on the
+    view/edit booking screen, if the name is not already an alias.
+    (If it is already an alias, then that information is displayed,
+    with a link, since version 0.5.3, and I didn't change that.)
+  * Moved the sanity-check logic for aliases into a subroutine,
+    sanitycheckalias, which is now called from two places.
+  * Deployed 2007 December 19.
+Version 0.5.8:
+  * Based on feedback from Darlene, made Low Contrast the default.
+  * Deployed 2007 Dec 11.
+Version 0.5.7:
+  * Jill wanted a lower-contrast variant of darkonlight, so I created the
+    Low Contrast style.
+  * Deployed 2007 Dec 11.
+Version 0.5.6:
+  * Totally overhauled the stylesheet system.  The new system, among other things,
+    uses color to create visual cues for distinguishing different resources.
+    It's also simplified.  There are four choices of style:  light on dark,
+    dark on light, black on white, and browser colors.  Printing uses a variant
+    of black on white with certain navigational features set to display: none.
+  * Fixed a minor bug on the overview so the room name and first word of the
+    bookedfor don't runtogether.
+  * Replaced some "\"regular\"" double-quoted strings with qq["quote-like"] ones,
+    to get rid of all the backslashing.  Still need to do more of this.
+  * Fixed a bug in the authentication used by events.cgi
+  * Created v2 of the blue down-arrow for extending bookings.  v2 has better
+    contrast against the new blue-background styles for internet resources.
+  * Deployed 2007 Dec 11.
+Version 0.5.5:
+  * Added leobardis (large print internet).
+  * Deployed 2007 Dec 10.
+Version 0.5.4:
+  * Bookings search now looks under all aliases, plus the canonical name.
+  * Fixed Did You Mean feature to ignore 'CLOSED', which has special meaning.
+  * Deployed 2007 Nov 13.
+Version 0.5.3:
+  * Created sub capitalise to replace the ad-hoc split/map/join name capitalization.
+  * Added a line to sub capitalise to bicapitalize McNames, MacNames, and VanNames.
+  * When showing a booking, if the bookedfor is an alias, this is noted, with a link
+    to the alias record.
+  * Added alias record display, with an Edit link.
+  * Added alias edit functionality, with ability to save changes, subject to sanity checks.
+  * Added alias search to Search section of sidebar
+  * Created Aliases section of sidebar, which for now just also has alias search,
+    but this is where stuff like creating a new alias can go.
+  * Deployed 2007 Nov 13.
+Version 0.5.2:
+  * Created the new resched_alias table and moved the contents of %alias there.
+  * Altered sub dealias to use the resched_alias table rather than the hash.
+  * Created sub isalias, using the resched_alias table, to replace other
+    uses of the hash where dealias is not suitable.
+  * Tested: frequent user lookup still works correctly.
+  * Tested: booking the jukebox for an alias results in the canonical name
+    being shown, as it should.
+  * Fixed a long-standing minor bug that caused an extraneous message to be
+    output when deleting a non-followup booking.
+  * The view table cells now normalise and dealias the bookedfor names.
+  * When search returns a booking where bookedfor is an alias, it now
+    also gives the canon in parentheses.
+  * Deployed 2007 Nov 7.
+Version 0.5.1:
+  * Added [another patron] to %alias
+  * Not sure I ever deployed this version.
+Version 0.5.0:
+  * Fixed a bug in Automatic single-choice Did You Mean corrections.
+  * Deployed 2007 July 27.
+Version 0.4.9:
+  * Made debug comments in usage stats only occur if $debug is >1.
+  * Deployed 2007 July 25.
+Version 0.4.8:
+  * If there's only one Did You Mean choice, don't ask, just do it.
+  * Deployed 2007 July 23.
+Version 0.4.7:
+  * Added some more entries to %alias.
+  * Added multiple choice Did You Mean for single-word names per bug 77.
+  * Deployed 2007 July 13.
+Version 0.4.6:
+  * Added first part of the "Did You Mean" feature, per bug 77.
+  * Deployed 2007 July 11.
+Version 0.4.5:
+  * Added [another patron] to %alias.
+  * Search was returning results in forwards chronological order,
+    which now that we've been using the software for a while was
+    starting to feel wrong, since all the first results were
+    typically ancient history.  So I reversed it.
+  * Deployed 2007 May 30.
+Version 0.4.4:
+  * Made search and frequent user lookup ignore case.
+  * Made frequent user lookup normalize names (from "last, first"
+    to "first last", remove parenthesized "IN" notes, and so forth).
+  * Introduced %alias.  For the moment, frequent user lookup is the
+    only thing that uses it.
+  * Deployed sometime in 2007Q1 IIRC.
+  * Redeployed May 29 with minor fix to accommodate changes in our
+    network infrastructure: Use $ENV{HTTP_HOST} instead of
+    $ENV{SERVER_ADDR} when composing the base URI, since staff now
+    access this service through NAT.  Did not increment the version
+    number, partly because I was in a hurry.
+Version 0.4.3:
+  * Notes icon is now shown for followup bookings that have notes.
+  * Fixed a bug wherein deleting a followup booking left the parent
+    booking with an invalid followedby field, resulting in the
+    inability to schedule anybody else in that timeslot.  Now
+    deleting a followup booking changes the parent record to not
+    list a followup, so that a new one can be added if needed.
+  * Deployed 2006 Nov 06
+Version 0.4.2:
+  * Changed sendnewbookingform (in dynamic-info.cgi) so that if the
+    full durationmins is not available the default is to book
+    intervalmins rather than durationmins.  This reduces the
+    likelihood that the user will have to change the end time.
+  * Modified the index to apply the class dateth or todayth to the
+    date cells in the table header, depending on whether it matches
+    the current day or not.  Styled dateth to stand out visually
+    (black on yellow, with black border and yellow outline).
+  * Deployed 2006 October 9 (yeah, two updates on the same day).
+Version 0.4.1:
+  * Fixed a bug in sendnewbookingform (in dynamic-info.cgi) that had
+    prevented the Quick button from returning a usable form when there
+    was less than durationmins available.
+  * Changed showbooking (in dynamic-info.cgi) so that the done-early link
+    is not shown in situations wherein the booking might extend beyond the
+    table cell where it is currently shown.
+  * Deployed 2006 October 9.
+Version 0.4.0:
+  * This was the first version robust enough that we used it for
+    months with no changes.
+  * Consequently, it was _after_ this version that I instituted the
+    CHANGES.txt file.

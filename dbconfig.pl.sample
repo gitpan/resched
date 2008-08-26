@@ -1,0 +1,8 @@
+#!/usr/bin/perl
+
+package dbconfig;
+
+our $database = 'resched';
+our $host     = 'localhost';
+our $user     = 'YourDBUsernameHere';
+our $password = 'YourDBPasswordHere';

@@ -1,0 +1,38 @@
+Desired Changes:
+ * There are a lot of "double-quoted strings with \"escaped\" quotes
+   in them", which should be convered to qq[a more "modern" quoting
+   style]
+ * The whole thing should be profiled for perf bottlenecks.
+ * I have thought about adding a notes table, to allow notes
+   to be attached to specific patrons (rather than just certain
+   bookings) and appear any time they book anything.
+ * Various things are hardcoded that should not be, e.g., URLs,
+   opening and closing times, resource groupings, meeting
+   room equipment available, resource categories (should be a field
+   in the resources table), ...
+ * There's also stuff pertaining to peculiarities of how our patron
+   names look if they're copied and pasted from Polaris, because our
+   database has various holdovers from Galaxy, as well as various
+   local kludges.  This should all be ruthlessly ripped out of the
+   public version and replaced with config variables or hooks or
+   something to allow for equivalent local customization.
+ * General refactoring would not go amiss.  Among other things,
+   a lot of actions in the big if/elsif/elsif block ought to be
+   factored out to subroutines.
+ * Too much of the sidebar is too hardcoded.
+ * It would be really cool if it could use NCIP or something
+   to consult the ILS patron database.  If we could just
+   scan a barcode, and it would look it up and display the
+   name, that would be nifty.  (In such a case a field should
+   be added to the db for the barcode.)
+ * Some of the error messages might ought to be improved.
+   A lot of them only contain enough information to let me
+   uniquely identify the line in the source that produced the
+   error message.  Also, some of them are goofier than is
+   strictly necessary.
+ * At this time, db.pl only works with MySQL.  It would be
+   nice to also have Postgres support.  In addition to
+   db.pl, there is some date-conversion stuff that might
+   need to change, in DateTimeExtensions.pm
+ * tutorial.html has never been written, and probably
+   should be, and a link added to the sidebar.
