@@ -1,12 +1,40 @@
 See also TODO.txt
+Version 0.7.2:
+  * Fixed a number of markup issues per validator.w3.org
+    recommendations:
+    * Added xmlns attribute to html element.
+    * Fixed a couple of malformed comments.
+    * Changed a span to a div in several places so that the
+      block-level ul element would be allowed inside it.
+    * Got rid of all instances of the nobr element, which
+      is not defined in xhtml.  Replaced with a styled class.
+  * Changed script tag from self-closing to paired open/close
+    style.  This is theoretically incorrect (it's an empty
+    tag pointing to an external script file via src attribute),
+    but it appears to be necessary for MSIE support.
+  * Speaking of which, MSIE now _partly_ works.  For full
+    MSIE support a legacy stylesheet is needed and maybe
+    some updates to the AJAX stuff.
+  * Deployed 2008 Aug 29 in Galion, public release the
+    same day.
+Version 0.7.1:
+  * removed FormInput.pm, which was no longer being used
+    by anything.  (See the note in 0.7.0 about why.)
+    I am pretty sure that's finally the last of the old
+    Class::DBI stuff.
+  * Created RELEASE.txt with notes on doing a public release.
+  * Deployed in Galion, 2008 Aug 26.  This version was never
+    released publically, because it didn't have enough
+    changes over 0.7.0 to bother.
 Version 0.7.0:
   * Removed DBConfig.pm, which was no longer being used by
     anything.  (Actually, I think DBConfig.pm and Auth.pm
     may have only ever been used by the 'events' stuff,
     which is no longer even used in Galion and was never
-    a part of the public release in any case.)  I am pretty
-    sure that's the last of the Class::DBI stuff, so I
-    removed that module from the list in INSTALL.txt.
+    a part of the public release in any case.)
+  * Removed Class::DBI from the list in INSTALL.txt,
+    since it was only needed for the aforementioned
+    removed stuff.
   * Added the ils_name variable, which is used in two places
     (both having to do with aliases -- the canonical name
     should be spelled the same way as in the ILS).

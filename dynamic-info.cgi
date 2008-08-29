@@ -148,14 +148,14 @@ sub sendnewbookingform {
     my $untilinput;
     if (not $sch{durationlock}) {
       my $n = $sch{durationmins} / $sch{intervalmins};
-      $untilinput = qq[<nobr>until: <select name="untiltime">] . (join "\n       ",
+      $untilinput = qq[<span class="nobr">until: <select name="untiltime">] . (join "\n       ",
                                                 map {
                                                   my $dt = $whendt->clone()->add(minutes => $sch{intervalmins}*$$_[0]);
                                                   '<option value="'.$dt->hour.':'.$dt->minute.'"'.$$_[1].'>'.include::twelvehourtimefromdt($dt).'</option>'
                                                 } map {
                                                   [$_, (($_ eq $n and not $retries)
                                                         ? ' selected="selected"' : '')],
-                                                } 1 .. 6) . qq[</select></nobr>];
+                                                } 1 .. 6) . qq[</select></span>];
     }
     my $focid = 'foc' . join '', map { (qw(a b c d e f g h i j k l m n o p q r s t u v w x y z))[1 + rand 25] } 1..13;
     sendreplace($input{containerid},
@@ -167,7 +167,7 @@ sub sendnewbookingform {
                      <input type="hidden" name="stylepics" value="$input{stylepics}" />
                      <input type="text" name="bookedfor" size="20" id="$focid" />
                      $untilinput
-                     <nobr>initial:<input type="text" size="3" name="staffinitials" maxsize="20" /></nobr>
+                     <span class="nobr">initial:<input type="text" size="3" name="staffinitials" maxsize="20" /></span>
                      <input type="submit" value="Do it" />
                    </form></span>],
                 $focid

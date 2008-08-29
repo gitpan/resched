@@ -129,15 +129,15 @@ sub DateTime::Form::Fields {
          } 1..12)."</select></td></tr>
          <tr><td>Day:</td><td><input type=\"text\" size=\"3\" name=\"${prefix}_datetime_day\" value=\"".
            ($dt->mday)."\"$disabledate></input></td></tr>" unless $skipdate;
-  $result .= "
-         <tr><td>Time:</td><td><nobr><select name=\"${prefix}_datetime_hour\"$disabletime>".(join $/, map {
-           my $selected = ($_ == $dt->hour) ? " selected=\"selected\"" : "";
-           "<option value=\"$_\" $selected>".(($_>12)?(($_-12) . " pm"):(($_<12)?"$_ am":$_))."</option>"
+  $result .= qq[
+         <tr><td>Time:</td><td><span class="nobr"><select name="${prefix}_datetime_hour"$disabletime>].(join $/, map {
+           my $selected = ($_ == $dt->hour) ? qq[ selected="selected"] : "";
+           qq[<option value="$_" $selected>].(($_>12)?(($_-12) . " pm"):(($_<12)?"$_ am":$_))."</option>"
          } $firsthour .. $lasthour)."</select> : <select name=\"${prefix}_datetime_minute\"$disabletime>
            ".(join $/, map {
            my $selected = ($_ == $dt->minute) ? " selected=\"selected\"" : "";
            "<option value=\"$_\" $selected>$_</option>"
-         } map { sprintf "%02d", $_ } 0 .. 59)."</select></nobr></td></tr>
+         } map { sprintf "%02d", $_ } 0 .. 59)."</select></span></td></tr>
 " unless $skiptime;
   $result .= "
      </tbody></table></div>";

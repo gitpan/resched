@@ -5,7 +5,7 @@ use strict;
 require "./db.pl";
 package include;
 
-my $ajaxscript = qq[<script language="javascript" src="ajax.js" type="text/javascript" />\n];
+my $ajaxscript = qq[<script language="javascript" src="ajax.js" type="text/javascript">\n</script>\n];
 
 our %sidebarpos = ( right => 1 ) unless defined %sidebarpos; # Used by contentwithsidebar
 # any of 'left', 'right', 'top', and 'bottom' that are set to true
@@ -102,14 +102,14 @@ sub standardoutput {
   my ($title, $content, $ab, $style, $meta) = @_;
   my $cws = contentwithsidebar($content, "$ab\n".main::usersidebar());
   my $css = include::style($style);
-  return "Content-type: $include::content_type\n$auth::cookie
+  return qq[Content-type: $include::content_type\n$auth::cookie
 
 $include::doctype
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.0 vintage 2008 August 5 -->
+   <!-- resched version 0.7.2 vintage 2008 August 29 -->
    <title>$title</title>
    $ajaxscript
    $meta
@@ -119,7 +119,7 @@ $include::doctype
   $cws
 $include::footer
 </body>
-</html>";
+</html>];
 }
 
 sub contentwithsidebar {
@@ -204,10 +204,14 @@ sub include::style {
     ($a eq $s) ? -1 : (($b eq $s) ? 1 : ($b cmp $a))
   } keys %style;
   my $nonajaxstyle = qq[
-<style type="text/css"><!-- 
+<style type="text/css">
 
 .nonajax {
   display: none;
+}
+
+.nobr {
+  white-space: nowrap;
 }
 
 </style>] unless $main::input{ajax} eq 'off';
@@ -223,7 +227,7 @@ our $footer = qq[<div class="footer">
 <p class="noprint">Powered By <abbr title="Linux, Apache, MySQL, Perl"><a href="http://www.onlamp.com">LAMP</a></abbr>
    and <abbr title="Asynchronous Javascript And XML"><a href="http://en.wikipedia.org/wiki/AJAX">AJAX</a></abbr> Technologies:
 <a href="http://www.linux.org"><img src="tux-small.png" alt="Linux, "></img></a>
-<a href="http://www.apache.org"></abbr><img src="feather-small.png" alt="Apache, "></img></a>
+<a href="http://www.apache.org"><img src="feather-small.png" alt="Apache, "></img></a>
 <a href="http://www.mysql.com/"><img src="dolphin-blue-white-small.png" alt="MySQL, " width="36" height="32"></img></a>
 <a href="http://www.perl.com/"><img src="camel-small.png" alt="Perl, " width="28" height="31"></img></a>
 <a href="http://en.wikipedia.org/wiki/Javascript"><img src="rhino.png" alt="Javascript, " width="23" height="32" /></a>

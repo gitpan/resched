@@ -1,7 +1,16 @@
 Desired Changes:
+ * Figure out why it doesn't work with MSIE, and fix that.
+ * For security reasons, passwords should be hashed for storage in
+   the database.  (One good reason:  many users would want to use the
+   same username/password combo they use in other contexts.)  This
+   has not been a critical issue for Galion since we use auth_by_ip,
+   but it should be done anyway because the way it currently works
+   is just generally bad practice.
  * There are a lot of "double-quoted strings with \"escaped\" quotes
    in them", which should be convered to qq[a more "modern" quoting
    style]
+ * It would be good to add some POD, to make the software more 
+   discoverable on the CPAN.
  * The whole thing should be profiled for perf bottlenecks.
  * I have thought about adding a notes table, to allow notes
    to be attached to specific patrons (rather than just certain
@@ -34,5 +43,5 @@ Desired Changes:
    nice to also have Postgres support.  In addition to
    db.pl, there is some date-conversion stuff that might
    need to change, in DateTimeExtensions.pm
- * tutorial.html has never been written, and probably
+ * The tutorial has never been written, and probably
    should be, and a link added to the sidebar.

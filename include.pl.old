@@ -1,0 +1,778 @@
+#!/usr/bin/perl
+# -*- cperl -*-
+
+use strict;
+require "./db.pl";
+package include;
+
+my $baseuri = ($0 =~ /resched-dev/ ? "http://$ENV{HTTP_HOST}/staff/resched-dev/dynamic-info.cgi" : "http://$ENV{HTTP_HOST}/staff/resched/dynamic-info.cgi");
+
+my $ajaxscript = <<"AJAXSCRIPT";
+<script language="javascript">
+   var request = false;
+try {
+  request = new XMLHttpRequest();
+} catch (trymicrosoft) {
+  try {
+    request = new ActiveXObject("Msxml2.XMLHTTP");
+  } catch (othermicrosoft) {
+    try {
+      request = new ActiveXObject("Microsoft.XMLHTTP");
+    } catch (failed) {
+      request = false;
+    }
+  }
+}
+function handleResponse() {
+  if (request.readyState==4) {
+    var resultdom = request.responseXML.documentElement;
+    var alerts = resultdom.getElementsByTagName("alert");
+    if (alerts && alerts[0]) {
+       var alerttext = alerts[0].firstChild.data;
+       alert(alerttext);
+    }
+    var repl = resultdom.getElementsByTagName("replace");
+    if (repl  && repl[0]) {
+       var containerid = resultdom.getElementsByTagName("replace_within")[0].firstChild.data;
+       var container   = document.getElementById(containerid);
+       var newcontent  = resultdom.getElementsByTagName("replacement")[0].firstChild;
+       var oldnode     = container.childNodes;
+       var numnodes    = oldnode.length;
+       for (var i=numnodes-1; i >= 0; i--) {
+          container.removeChild(oldnode[i]);
+       }
+       container.appendChild(newcontent);
+    }
+    var foc = resultdom.getElementsByTagName("focus");
+    if (foc && foc[0]) {
+       var focid = foc[0].firstChild.data;
+       var focel = document.getElementById(focid);
+       focel.focus();
+    }
+}}
+
+function sendajaxrequest(myargs) {
+   var uri = '$baseuri' + '?' + myargs;
+   //alert(uri);
+   request.open("GET", uri, true);
+   request.onreadystatechange=handleResponse;
+   request.send(null);
+}
+function onemoment(containerid) {
+   var container = document.getElementById(containerid);
+   insert_before_element('One Moment...', container.firstChild)
+}
+function toggledisplay(eltid, expansionmarker, coerce) {
+  var elt = document.getElementById(eltid);
+  if ((elt.style.display == "none") || (coerce=='expand')) {
+    elt.style.display = "inline";
+  } else {
+    elt.style.display = "none";
+  }
+  if (expansionmarker) {
+     var expansionelt = document.getElementById(expansionmarker);
+     if (elt.style.display == "none") {
+        expansionelt.firstChild.data = '+';
+     } else {
+        expansionelt.firstChild.data = '-';
+     }
+  }
+}
+
+function changerecurform() {
+  var selectelt      = document.getElementById('recurformselect');
+  var recurstyleselt = document.getElementById('recurstyles');
+  var recurlistelt   = document.getElementById('recurlist');
+  if (selectelt.value == 'listed') {
+    recurstyleselt.style.display = "none";
+    recurlistelt.style.display = "inline";
+  } else {
+    if (selectelt.value == '') {
+      recurstyleselt.style.display = "none";
+      recurlistelt.style.display = "none";
+    } else {
+      recurstyleselt.style.display = "inline";
+      recurlistelt.style.display = "none";
+    }
+  }
+}
+
+  function insert_before_element(what, where) {
+      // This function is black, cargo-cult magic of the worst kind.
+      // But it works, at least in Gecko.  It comes from the Open Clip
+      // Art Library's svg upload tool, which uses it to let clip-art
+      // authors add an arbitrary number of keywords.  The OCAL got the
+      // jist of it from http://developer.osdl.org/bryce/js_test/test_7.html
+      var range = where.ownerDocument.createRange(); // I have no clue what this does,
+      range.setStartBefore(where);                   // much less this, or why it's necessary.
+      where.parentNode.insertBefore(range.createContextualFragment(what),where);
+  }
+
+var datenumber = 1;
+function augmentdatelist(year) {
+  datenumber = datenumber + 1;
+  var newcontent = '<tr><td><input type="text" name="recurlistyear' + datenumber + '" size="5" value="' + year + '" /></td>'
+                 +  '        <td><select name="recurlistmonth' + datenumber + '">'
+                 +  '              <option value="1">Jan</option>  <option value="2">Feb</option>  <option value="3">Mar</option>'
+                 +  '              <option value="4">Apr</option>  <option value="5">May</option>  <option value="6">Jun</option>'
+                 +  '              <option value="7">Jul</option>  <option value="8">Aug</option>  <option value="9">Sep</option>'
+                 +  '              <option value="10">Oct</option> <option value="11">Nov</option> <option value="12">Dec</option>'
+                 +  '             </select></td>'
+                 +  '        <td><input type="text" name="recurlistmday' + datenumber + '" size="3" /></td>';
+  var elt = document.getElementById('insertmorelisteddateshere');
+  insert_before_element(newcontent, elt);
+}
+
+</script>
+AJAXSCRIPT
+
+our %sidebarpos = ( right => 1 ) unless defined %sidebarpos; # Used by contentwithsidebar
+# any of 'left', 'right', 'top', and 'bottom' that are set to true
+# cause sidebar to appear there.  'right' only is the default.
+
+sub datewithtwelvehourtime {
+  my ($dt) = @_;
+  return $dt->ymd() . " at " . twelvehourtime($dt->hour() . ":" . sprintf "%02d", $dt->minute());
+}
+
+sub twelvehourtimefromdt {
+  my ($dt) = @_;
+  my $h = $dt->hour;
+  my $m = sprintf "%02d", $dt->minute;
+  $m = '' if ($m == 0 and $h ne 12);
+  if ($h > 12) {
+    $m .= "pm";
+    $h -= 12;
+  } elsif ($h < 12) {
+    $m .= "am";
+  }
+  return $h . ":" . $m;
+}
+
+sub twelvehourtime {
+  my ($time) = @_;
+  my ($h, $m, $rest) = $time =~ /(\d+)[:](\d+)(.*)/;
+  $rest = '0' . $rest if $rest =~ /^\d$/;
+  if ($h > 12) {
+    $h -= 12; $rest .= " pm";
+  } else {
+    $rest .= " am" unless $h == 12;
+  }
+  return $h . ":" . $m . $rest;
+}
+
+
+sub ordinalsuffix {
+  my ($n) = @_;
+  return "th" if ($n > 10 and $n < 14);
+  my %th = ( 1 => 'st', 2 => 'nd', 3 => 'rd', map { ($_ => 'th') } (0, 4..9));
+  return $th{($n =~ /.*(\d)/)[0]};
+}
+
+sub standardoutput {
+  # This returns the complete http headers and the html
+  # calling code must define sub main::usersidebar that
+  # returns an appropriate div.
+  my ($title, $content, $ab, $style, $meta) = @_;
+  my $cws = contentwithsidebar($content, "$ab\n".main::usersidebar());
+  $style ||= 'default';
+  my $css = include::style($style);
+  return "Content-type: $include::content_type\n$auth::cookie
+
+$include::doctype
+<html>
+<head>
+   <!-- This page is served by resched, the Resource Scheduling tool -->
+   <!-- Created by Nathan Eady for Galion Public Library.  -->
+   <!-- resched version 0.5.5, vintage 2007  -->
+   <title>$title</title>
+   $meta
+   $ajaxscript
+   $css
+</head>
+<body>
+  $cws
+$include::footer
+</body>
+</html>";
+}
+
+sub contentwithsidebar {
+  # It is up to the calling code to ensure $sidebar will display
+  # properly in the position in question.  (This is especially an
+  # issue for top or bottom 'sidebars'.
+  my ($content, $sidebar) = @_;
+  my $colspan = 1 + ($sidebarpos{left}?1:0) + ($sidebarpos{right}?1:0);
+  return "<table border=\"0\" class=\"contentwithsidebar\" width=\"100%\">"
+    . ($sidebarpos{top}?   "<tr class=\"sidebar\"><td class=\"sidebar\" colspan=\"$colspan\">$sidebar</td></tr>":"")
+    . "<tr>" . ($sidebarpos{left} ?"<td class=\"sidebar\">$sidebar</td>":"")
+             . "<td class=\"content\">$content</td>"
+             . ($sidebarpos{right}?"<td class=\"sidebar\">$sidebar</td>":"")
+             ."</tr>"
+    . ($sidebarpos{bottom}?"<tr class=\"sidebar\"><td class=\"sidebar\" colspan=\"$colspan\">$sidebar</td></tr>":"")
+    . "</table>";
+}
+
+sub optionlist {
+  my ($listname, $hashref, $default) = @_;
+  my %option = %{$hashref};
+  my $list = "<select name=\"$listname\">";
+  for (sort { $a <=> $b } keys %option) {
+    $list .= "<option value=\"$_\"".(($_ eq $default)?" selected=\"selected\"":"").">$option{$_}</option>";
+  }
+  $list .= "</select>";
+  return $list;
+}
+
+our %fieldname =
+  (
+   id           => 'ID #',
+   name         => 'Name',
+   location     => 'Location',
+   type         => 'Type',
+   manufacturer => 'Manufacturer',
+   mapcode      => 'Map Code',
+   model        => 'Model',
+   serial       => 'Serial',
+   ipaddr       => 'IP Address',
+   dns          => 'Domain Name',
+   decnet       => 'DECNet',
+   related      => 'Related Items',
+   supplies     => 'Supplies Used',
+   notes        => 'Notes',
+   purchased    => 'Purchased',
+   software     => 'Software',
+  );
+
+
+our $doctype = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
+our $content_type = "text/html";
+
+my %colorset =
+  (
+   jonadabian => +{
+                   #bgimage
+                   #tblbgimage
+                   tblcolor   => "#294D4A",
+                   bgcolor    => "#294D4A",
+                   fgcolor    => "#FFE6BC",
+                   bdcolor    => "#FFE6BC",
+                   ln_bgcolor => "transparent",
+                   ln_fgcolor => "#FFF1DB",
+                   ln_vscolor => "#FFE6BC",
+                   ln_hacolor => "white",
+                   availcolor => "#CEBB98",
+                   #sb_bgimage
+                   sb_bgcolor => "#000077",
+                   sb_fgcolor => "#DDDD00",
+                   sb_bdcolor => "#FFFF66",
+                   ab_bgcolor => "#C17447",
+                   ab_fgcolor => "#FFFFFF",
+                   ab_bdcolor => "#FFE900 #FFB200",
+                   infobg     => "#223f3d",
+                   errorbg    => "#4C0000",
+                  },
+   softpurple => +{
+                   bgimage    => "gpl-simplified-nautilus-dark.png",
+                   #tblbgimage => "gpl-simplified-nautilus-dark.png",
+                   tblcolor   => "#B2A2B2",
+                   bgcolor    => "#B2A2B2",
+                   fgcolor    => "black",
+                   bdcolor    => "#AA22AA",
+                   ln_bgcolor => "transparent",
+                   ln_fgcolor => "#55145E",
+                   ln_vscolor => "#300B35",
+                   ln_hacolor => "#FF00FF",
+                   #availcolor => "#986E9C",
+                   sb_bgimage => "gpl-simplified-nautilus-blue.png",
+                   sb_bgcolor => "#8C8DAA",
+                   sb_fgcolor => "white",
+                   sb_bdcolor => "#528AD3",
+                   ab_bgcolor => "#BC8080",
+                   ab_fgcolor => "white",
+                   ab_bdcolor => "#D87450",
+                  },
+   lightpurple => +{
+                    bgimage    => "gpl-simplified-nautilus-dark.png",
+                    tblbgimage => "gpl-simplified-nautilus-lavender.png",
+                    bgcolor    => "#DBC9DB",
+                    fgcolor    => "black",
+                    bdcolor    => "#AA22AA",
+                    tblcolor   => "#DBC9DB",
+                    ln_bgcolor => "transparent",
+                    ln_fgcolor => "#6E3675",
+                    ln_vscolor => "#6E3675",
+                    ln_hacolor => "#FF00FF",
+                    availcolor => "#986E9C",
+                    sb_bgimage => "gpl-simplified-nautilus-blue.png",
+                    sb_bgcolor => "#B1B2D6",
+                    sb_fgcolor => "white",
+                    sb_bdcolor => "#528AD3",
+                    ab_bgcolor => "#BC8080",
+                    ab_fgcolor => "white",
+                    ab_bdcolor => "#D87450",
+                   },
+   britewite => +{
+                  #bgimage    => "gpl-simplified-nautilus-dark.png",
+                  #tblbgimage => "gpl-simplified-nautilus-lavender.png",
+                  bgcolor    => "#FFFFFF",
+                  fgcolor    => "#000000",
+                  bdcolor    => "#999999",
+                  tblcolor   => "#FFFFFF",
+                  ln_bgcolor => "transparent",
+                  ln_fgcolor => "#666666",
+                  ln_vscolor => "#222222",
+                  ln_hacolor => "#FF00FF",
+                  availcolor => "#999999",
+                  #sb_bgimage => "gpl-simplified-nautilus-blue.png",
+                  sb_bgcolor => "#DDDDDD",
+                  sb_fgcolor => "#000000",
+                  sb_bdcolor => "#999999",
+                  ab_bgcolor => "#AAAAAA",
+                  ab_fgcolor => "#000000",
+                  ab_bdcolor => "#999999",
+                 },
+   neonlites => +{
+                  bgimage    => "gpl-simplified-nautilus-black1.png",
+                  tblbgimage => "gpl-simplified-nautilus-black3.png",
+                  bgcolor    => "#000000",
+                  fgcolor    => "#FFFF00",
+                  bdcolor    => "#0000FF",
+                  tblcolor   => "#000000",
+                  ln_bgcolor => "transparent",
+                  ln_fgcolor => "#00FFFF",
+                  ln_vscolor => "#FF00FF",
+                  ln_hacolor => "#FFFFFF",
+                  availcolor => "#7F7FFF",
+                  sb_bgimage => "gpl-simplified-nautilus-black2.png",
+                  sb_bgcolor => "#000000",
+                  sb_fgcolor => "#00FF00",
+                  sb_bdcolor => "#00FF00",
+                  ab_bgcolor => "#000000",
+                  ab_fgcolor => "#FF0000",
+                  ab_bdcolor => "#FF0000",
+                 },
+   manilla => +{
+                  bgimage    => "gpl-simplified-nautilus-manilla1.png",
+                  tblbgimage => "gpl-simplified-nautilus-manilla-tbl.png",
+                  bgcolor    => "#CEBB98",
+                  fgcolor    => "#294D4A",
+                  bdcolor    => "#294D4A",
+                  tblcolor   => "#FFF2DD",
+                  ln_bgcolor => "transparent",
+                  ln_fgcolor => "#529993",
+                  ln_vscolor => "#3D726D",
+                  ln_hacolor => "#67BFB7",
+                  availcolor => "#000000",
+                  sb_bgimage => "gpl-simplified-nautilus-manilla-sb.png",
+                  sb_bgcolor => "#FFE6BC",
+                  sb_fgcolor => "#294D4A",
+                  sb_bdcolor => "#3D726D",
+                  ab_bgcolor => "#FFFFFF",
+                  ab_fgcolor => "#CCCCCC",
+                  ab_bdcolor => "#3D726D",
+                 },
+   hicmanilla => +{
+                   bgimage    => "gpl-simplified-nautilus-manilla-tbl.png",
+                   tblbgimage => "gpl-simplified-nautilus-manilla-tbl.png",
+                   bgcolor    => "#FFF2DD",
+                   fgcolor    => "#000000",
+                   bdcolor    => "#3D726D",
+                   tblcolor   => "#FFF2DD",
+                   ln_bgcolor => "transparent",
+                   ln_fgcolor => "#007F00",
+                   ln_vscolor => "#3D726D",
+                   ln_hacolor => "#FF0000",
+                   availcolor => "#294D4A",
+                   sb_bgimage => "gpl-simplified-nautilus-manilla-sb.png",
+                   sb_bgcolor => "#FFE6BC",
+                   sb_fgcolor => "#294D4A",
+                   sb_bdcolor => "#3D726D",
+                   ab_bgcolor => "#CEBB98",
+                   ab_fgcolor => "#294D4A",
+                   ab_bdcolor => "#3D726D",
+                 },
+   burgundy => {
+                  bgimage    => "gpl-simplified-nautilus-burgundy1.png",
+                  tblbgimage => "gpl-simplified-nautilus-burgundy-tbl.png",
+                  bgcolor    => "#601f1f",
+                  fgcolor    => "#FFF2DD",
+                  bdcolor    => "#914242",
+                  tblcolor   => "#471717",
+                  ln_bgcolor => "transparent",
+                  ln_fgcolor => "#FFE6BC",
+                  ln_vscolor => "#CEBB98",
+                  ln_hacolor => "#FFFF00",
+                  availcolor => "#FFF2DD",
+                  sb_bgimage => "gpl-simplified-nautilus-burgundy-sb.png",
+                  sb_bgcolor => "#AA6464",
+                  sb_fgcolor => "#FFF2DD",
+                  sb_bdcolor => "#FFE6BC",
+                  ab_bgcolor => "#7F0000",
+                  ab_fgcolor => "#CCCCCC",
+                  ab_bdcolor => "#CCCCCC",
+               }
+  );
+
+$colorset{default} = $colorset{manilla};
+
+sub include::check_for_collision_using_datetimes {
+  my ($res, $begdt, $enddt) = @_;
+  die "check_for_collision_using_datetimes takes datetime arguments for the timeslot beginning and end" unless (ref $begdt and ref $enddt);
+  my $beg = DateTime::Format::ForDB($begdt);
+  my $end = DateTime::Format::ForDB($enddt);
+  return include::check_for_collision($res, $beg, $end);
+}
+sub include::check_for_collision {
+  # This is an optimization.  Previously we fetched all results for
+  # the resource in question, made DateTime objects for their start
+  # and end, and checked for overlap using DateTime::Duration.  That
+  # was reliable, but this way is a big performance improvement.
+  my ($res, $beg, $end) = @_;
+  die "check_for_collision does not take datetime arguments; use check_for_collision_using_datetimes if you need that" if (ref $beg or ref $end);
+  my $db = main::dbconn();
+  my ($resid) = $res =~ /(\d+)/;
+  my $q = $db->prepare("SELECT * FROM resched_bookings WHERE resource=? AND until > ? AND fromtime < ?");
+  $q->execute($resid, $beg, $end);
+  my (@answer, $r);
+  while ($r = $q->fetchrow_hashref()) { push @answer, $r; }
+  #warn "Checked for collisions on resource $res from $beg until $end: found " . scalar @answer . " collision(s) on behalf of $ENV{REMOTE_ADDR}.\n"; # TODO:  Comment this out when we're sure all is well.
+  return @answer;
+}
+
+sub include::style {
+  my ($s) = @_;
+  my %c = %{$colorset{$s}};
+  $c{availcolor} ||= $c{ln_fgcolor};
+  $c{errorbg}    ||= '#7F0000';    $c{errorfg}    ||= '#FFF1DB';    $c{errorbd}    ||= '#FFFF00';
+  $c{infobg}     ||= $c{tblcolor}; $c{infofg}     ||= $c{fgcolor};  $c{infobd}     ||= $c{bdcolor};
+  if ($main::input{stylepics} eq 0) { # Note the string eq: '' is default, not explicit off.
+    $c{bgimage} = $c{tblbgimage} = $c{sb_bgimage} = '';
+  }
+  my $nonajaxstyle = qq[
+.nonajax {
+  display: none;
+}
+] unless $main::input{ajax} eq 'off';
+  return "<style type=\"text/css\"><!-- 
+/* Style: $s */
+/* Basic style okay for _all_ browsers (must be tested with Netscape 4 specificially): */
+body, .closed {
+  background-color:      $c{bgcolor};
+  background-image:      url('/img/gpl-bg/$c{bgimage}');
+  background-attachment: fixed;
+  background-repeat:     no-repeat;
+  background-position:   center;
+  color:                 $c{fgcolor};
+  font-weight:           bold;
+}
+
+.content {
+  vertical-align:        top;
+  padding:               0.5em;
+}
+
+.authbox, .sidebar {
+  vertical-align:   top;
+}
+
+div.authbox {
+  background:       $c{ab_bgcolor};
+  color:            $c{ab_fgcolor};
+  border-color:     $c{ab_bdcolor};
+  border-style:     outset;
+  padding:          0.5em;
+}
+
+div.sidebar {
+  background-color:      $c{sb_bgcolor};
+  background-image:      url('/img/gpl-bg/$c{sb_bgimage}');
+  background-attachment: fixed;
+  background-repeat:     no-repeat;
+  background-position:   center;
+  color:                 $c{sb_fgcolor};
+  border-color:          $c{sb_bdcolor};
+  border-style:          outset;
+}
+
+div.admin {
+  background:       #935454;
+  color:            white;
+  border-bottom:    #FFFF66 inset;
+}
+
+div.footer {
+  text-align:       right;
+}
+
+strong {
+  font-size:        1.2em;
+}
+
+.error {
+  background-color: $c{errorbg};
+  color:            $c{errorfg};
+  border-color:     $c{errorbd};
+  border-width:     3px;
+  border-style:     outset;
+  padding:          1em;
+  margin-top:       1em;
+  margin-bottom:    1em;
+}
+
+.info {
+  background-color: $c{infobg};
+  color:            $c{infofg};
+  border-color:     $c{infobd};
+  border-width:     2px;
+  border-style:     outset;
+  padding:          0.5em;
+  margin-top:       0.5em;
+  margin-bottom:    0.5em;
+}
+
+div.category {
+  background-color:      $c{bgcolor};
+  background-image:      url('/img/gpl-bg/$c{tblbgimage}');
+  background-attachment: fixed;
+  background-position:   center;
+  color:                 $c{fgcolor};
+  border-color:          $c{bdcolor};
+  border-width:     2px;
+  border-style:     outset;
+  padding:          0.5em;
+  margin-top:       0.5em;
+  margin-bottom:    0.5em;
+}
+.rightpad {
+  padding-right:    1.5em;
+  margin-right:     15px;
+}
+.numeric {
+  text-align:       right;
+}
+
+/* Now, we tell Netscape 4 the rest is a comment and include the rest of the style info: */
+/*/*/
+
+img {
+  border:           none;
+  padding:          0px;
+}
+img.extendarrow {
+  float:            left;
+}
+a {
+  text-decoration:  none;
+}
+a:link {
+  background:       $c{ln_bgcolor};
+  color:            $c{ln_fgcolor};
+}
+a:visited {
+  background:       $c{ln_bgcolor};
+  color:            $c{ln_vscolor};
+}
+a.avail {
+  background:       transparent;
+  color:            $c{availcolor};
+}
+a:hover, a:active {
+  background:       $c{ln_bgcolor};
+  color:            $c{ln_hacolor};
+}
+
+div.sidebar > div {
+  padding-left:      0.5em;
+  padding-right:     0.5em;
+  padding-bottom:    0.5em;
+  padding-top:       0.5em;
+}
+
+div.sidebar > div > ul,
+div.sidebar > div > span > ul {
+  margin-top:       0.2em;
+  margin-bottom:    0.5em;
+}
+
+a.button {
+  background-color:     ButtonFace;
+  color:                ButtonText;
+  text-decoration:      none;
+  font-weight:          normal;
+  font-size:            0.9em;
+  border-style:         outset;
+  border-width:         2px;
+  border-left-color:    ButtonHighlight;
+  border-top-color:     ButtonHighlight;
+  border-right-color:   ButtonShadow;
+  border-bottom-color:  ButtonShadow;
+}
+
+input, textarea, select, a.button {
+  background-color: $c{bgcolor};
+  color:            $c{fgcolor};
+  border-width:     2px;
+  padding:          1px;
+}
+
+input[type=submit],
+a.button
+{
+  padding-bottom:       1px;
+  padding-top:          1px;
+  padding-left:         0.75em;
+  padding-right:        0.75em;
+  border-top-color:       $c{bdcolor};
+  border-left-color:      $c{bdcolor};
+  border-bottom-color:    $c{tblcolor};
+  border-right-color:     $c{tblcolor};
+  border-style:           outset;
+  font-weight:            bold;
+}
+input[type=submit]:hover,
+a.button:hover
+{
+  color:            $c{ln_hacolor};
+}
+input[type=text], input[type=checkbox]
+textarea, select {
+  border-style:           inset;
+}
+
+a.button {
+  padding-top:          0.25em;
+}
+
+.nav,
+td.content > table,
+td.content > form {
+  background-color:      $c{tblcolor};
+  background-image:      url('/img/gpl-bg/$c{tblbgimage}');
+  background-attachment: fixed;
+  background-repeat:     no-repeat;
+  background-position:   center;
+  border-style:          outset;
+  border-color:          $c{bdcolor};
+  border-width:          0.2em;
+  margin-right:          0.5em;
+  padding:               0.5em;
+}
+td.content > table > thead > tr > th,
+table.table th {
+  border-style:     inset;
+  border-color:     $c{bdcolor};
+  border-width:     1px;
+}
+td.content > table > tbody > tr > td,
+table.table td {
+  border-style:     inset;
+  border-color:     $c{bdcolor};
+  border-width:     1px;
+}
+
+td.beforeopen {
+  visibility:          hidden;
+  border-width:        0px;
+  margin:              0px;
+  padding:             0px;
+  height:              0px;
+}
+
+th.dateth, th.dateth * {
+  background-color:    #FFFF00;
+  border:              2px solid black !important;
+  outline:             2px solid yellow;
+  color:               black;
+  padding:             2px;
+  margin:              2px;
+}
+
+hr.doneearly {
+  margin:           0.1em;
+}
+div.doneearly {
+  font-size:        70%;
+}
+
+div.switchwith {
+  font-size:        0.75em;
+  font-weight:      normal;
+}
+
+table.monthcal td {
+  vertical-align:   top;
+  font-size:        0.5em;
+  min-height:       3em;
+}
+div.calmdaynum {
+  font-size:        1.5em;
+}
+
+.expmark {
+  font-weight:      bold;
+  color:            $c{ln_fgcolor};
+  border:           1px dotted $c{ln_fgcolor};
+  font-family:      \"Bitstream Vera Sans Mono\", \"Andale Mono\", \"Lucida Console\", monospace; 
+}
+
+$nonajaxstyle
+
+</style>
+<style type=\"text/css\" media=\"print\"><!-- 
+/* Basic style okay for _all_ browsers (must be tested with Netscape 4 specificially): */
+body {
+  background-color: white;
+  color:            black;
+}
+div.admin, div.sidebar,
+.authbox, .nav {
+  display: none;
+}
+
+.noprint {
+  display: none;
+}
+
+/* Now, we tell Netscape 4 the rest is a comment and include the rest of the style info: */
+/*/*/
+img {
+  border:           none;
+}
+</style>\n";
+}
+
+our $footer = "<div class=\"footer\">
+<p class=\"noprint\">Powered By <abbr title=\"Linux, Apache, MySQL, Perl\"><a href=\"http://www.onlamp.com\">LAMP</a></abbr>
+   and <abbr title=\"Asynchronous Javascript And XML\"><a href=\"http://en.wikipedia.org/wiki/AJAX\">AJAX</a></abbr> Technologies:
+<a href=\"http://www.linux.org\"><img src=\"tux-small.png\" alt=\"Linux, \"></img></a>
+<a href=\"http://www.apache.org\"></abbr><img src=\"feather-small.png\" alt=\"Apache, \"></img></a>
+<a href=\"http://www.mysql.com/\"><img src=\"dolphin-blue-white-small.png\" alt=\"MySQL,\" width=\"36\" height=\"32\"></img></a>
+<a href=\"http://www.perl.com/\"><img src=\"camel-small.png\" alt=\"Perl, \" width=\"28\" height=\"31\"></img></a>
+<a href=\"http://en.wikipedia.org/wiki/Javascript\"><img src=\"rhino.png\" alt=\"Javascript, \" width=\"23\" height=\"32\" /></a>
+<abbr title=\"Extensible Markup Language\"><a href=\"http://www.w3.org/XML/\">XML</a></abbr>
+</p></div>\n";
+
+our $localtimezone = "America/New_York";
+
+sub parsemonth {
+  local ($_)=@_;
+  if    (/\d+/)   { return $1; }
+  elsif (/^jan/i) { return  1; }
+  elsif (/^feb/i) { return  2; }
+  elsif (/^mar/i) { return  3; }
+  elsif (/^apr/i) { return  4; }
+  elsif (/^may/i) { return  5; }
+  elsif (/^jun/i) { return  6; }
+  elsif (/^jul/i) { return  7; }
+  elsif (/^aug/i) { return  8; }
+  elsif (/^sep/i) { return  9; }
+  elsif (/^oct/i) { return 10; }
+  elsif (/^nov/i) { return 11; }
+  elsif (/^dec/i) { return 12; }
+  else {
+    return 0;
+  }
+}
+
+1;

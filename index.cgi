@@ -206,13 +206,13 @@ if ($auth::user) {
          <input type="hidden" name="overview" value="$input{overview}" />
          <input type="hidden" name="usestyle" value="$input{usestyle}" />
          <input type="hidden" name="useajax" value="$input{useajax}" />
-         <nobr>starting from $startmonthoptions
+         <span class="nobr">starting from $startmonthoptions
                of <input type="text" name="startyear" size="5" value="$input{startyear}" />
-               </nobr>
+               </span>
            and
-         <nobr>ending with $endmonthoptions
+         <span class="nobr">ending with $endmonthoptions
                of <input type="text" name="endyear" size="5" value="$input{endyear}" />
-               </nobr>
+               </span>
          <input type="submit" value="Go" />
       </form>
     ];
@@ -734,8 +734,8 @@ if ($auth::user) {
       my $hourselect = '<select name="untilhour">'.(houroptions($until->hour())).'</select>';
       $untilp = "Booking from ".(
                                  include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
-                                )." to
-          <nobr>$hourselect<strong>:</strong><input type=\"text\" name=\"untilmin\" size=\"3\" value=\"".($until->minute())."\" /></nobr>
+                                ).qq[ to
+          <span class="nobr">$hourselect<strong>:</strong><input type="text" name="untilmin" size="3" value="].($until->minute())."\" /></span>
           on " . $when->date() . ".";
     }
 
@@ -775,34 +775,34 @@ if ($auth::user) {
       <p>Number of Participants:  <input name="participants" type="text" size="4" $value{participants} /></p>
       <div class="category">
              <div><strong>Kitchen Use:</strong>
-               <nobr><input type="radio" name="kitchenuse" value="Yes" />Yes</nobr>
-               <nobr><input type="radio" name="kitchenuse" value="No" checked="checked" onClick="document.bookingform.coffee.checked=false; document.bookingform.nuker.checked=false; document.bookingform.fridge.checked=false; document.bookingform.meal.checked=false; " />No</nobr>
+               <span class="nobr"><input type="radio" name="kitchenuse" value="Yes" />Yes</span>
+               <span class="nobr"><input type="radio" name="kitchenuse" value="No" checked="checked" onClick="document.bookingform.coffee.checked=false; document.bookingform.nuker.checked=false; document.bookingform.fridge.checked=false; document.bookingform.meal.checked=false; " />No</span>
                </div><div>&nbsp;</div>
            <div>
-             <nobr class="rightpad"><input type="checkbox" name="coffee" onClick="document.bookingform.kitchenuse[0].checked=true;" />Coffee&nbsp;Pots</nobr>
-             <nobr class="rightpad"><input type="checkbox" name="nuker"  onClick="document.bookingform.kitchenuse[0].checked=true;" />Microwave</nobr>
-             <nobr class="rightpad"><input type="checkbox" name="fridge" onClick="document.bookingform.kitchenuse[0].checked=true;" />Refrigerator</nobr>
-                              <nobr><input type="checkbox" name="meal"   onClick="document.bookingform.kitchenuse[0].checked=true;" />Meal</nobr>
+             <nobr class="rightpad"><input type="checkbox" name="coffee" onClick="document.bookingform.kitchenuse[0].checked=true;" />Coffee&nbsp;Pots</span>
+             <nobr class="rightpad"><input type="checkbox" name="nuker"  onClick="document.bookingform.kitchenuse[0].checked=true;" />Microwave</span>
+             <nobr class="rightpad"><input type="checkbox" name="fridge" onClick="document.bookingform.kitchenuse[0].checked=true;" />Refrigerator</span>
+                              <span class="nobr"><input type="checkbox" name="meal"   onClick="document.bookingform.kitchenuse[0].checked=true;" />Meal</span>
            </div>
       </div>
       <div class="category"><div><strong>Equipment Requirements:</strong>
-               <nobr><input type="radio" name="ourequipment" value="Yes" />Yes (Our Equipment)</nobr>
-               <nobr><input type="radio" name="ourequipment" value="No" checked="checked" onClick="document.bookingform.chairs.value=0; document.bookingform.tables.value=0; document.bookingform.podium.checked=false; document.bookingform.dryboard.checked=false; document.bookingform.tv.checked=false; document.bookingform.screen.checked=false; document.bookingform.overhead.checked=false; document.bookingform.slides.checked=false; document.bookingform.projector.checked=false; document.bookingform.anythingelse.value='';" />No</nobr>
+               <span class="nobr"><input type="radio" name="ourequipment" value="Yes" />Yes (Our Equipment)</span>
+               <span class="nobr"><input type="radio" name="ourequipment" value="No" checked="checked" onClick="document.bookingform.chairs.value=0; document.bookingform.tables.value=0; document.bookingform.podium.checked=false; document.bookingform.dryboard.checked=false; document.bookingform.tv.checked=false; document.bookingform.screen.checked=false; document.bookingform.overhead.checked=false; document.bookingform.slides.checked=false; document.bookingform.projector.checked=false; document.bookingform.anythingelse.value='';" />No</span>
              </div><div>&nbsp;</div>
           <div><!-- Furniture -->
-             <nobr class="rightpad"># of Chairs: <input type="text" name="chairs" value="0" size="3" $value{chairs} onClick="document.bookingform.ourequipment[0].checked=true;" /></nobr>
-             <nobr># of Additional Tables:       <input type="text" name="tables" value="0" size="3" $value{tables} onClick="document.bookingform.ourequipment[0].checked=true;" /></nobr>
-                   <nobr>(The four tables are always provided.)</nobr>
+             <nobr class="rightpad"># of Chairs: <input type="text" name="chairs" value="0" size="3" $value{chairs} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
+             <span class="nobr"># of Additional Tables:       <input type="text" name="tables" value="0" size="3" $value{tables} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
+                   <span class="nobr">(The four tables are always provided.)</span>
           </div><div>&nbsp;</div>
           <div>
-             <nobr class="rightpad"><input type="checkbox" name="podium" $ischecked{podium}  onClick="document.bookingform.ourequipment[0].checked=true;" />Podium</nobr>
-             <nobr><input type="checkbox" name="dryboard" $ischecked{dryboard} onClick="document.bookingform.ourequipment[0].checked=true;" />Dry Erase Board</nobr>
+             <nobr class="rightpad"><input type="checkbox" name="podium" $ischecked{podium}  onClick="document.bookingform.ourequipment[0].checked=true;" />Podium</span>
+             <span class="nobr"><input type="checkbox" name="dryboard" $ischecked{dryboard} onClick="document.bookingform.ourequipment[0].checked=true;" />Dry Erase Board</span>
           </div><div>&nbsp;</div>
           <div><!-- A/V Stuff -->
-             <nobr class="rightpad"><input type="checkbox" name="tv"        $ischecked{tv}        onClick="document.bookingform.ourequipment[0].checked=true;" />TV/VCR</nobr>
-             <nobr class="rightpad"><input type="checkbox" name="screen"    $ischecked{screen}    onClick="document.bookingform.ourequipment[0].checked=true;" />Screen</nobr>
-             <nobr class="rightpad"><input type="checkbox" name="overhead"  $ischecked{overhead}  onClick="document.bookingform.ourequipment[0].checked=true;" />Overhead&nbsp;Projector</nobr>
-             <nobr><input                  type="checkbox" name="projector" $ischecked{projector} onClick="document.bookingform.ourequipment[0].checked=true;" />Projector for computer or VCR</nobr>
+             <nobr class="rightpad"><input type="checkbox" name="tv"        $ischecked{tv}        onClick="document.bookingform.ourequipment[0].checked=true;" />TV/VCR</span>
+             <nobr class="rightpad"><input type="checkbox" name="screen"    $ischecked{screen}    onClick="document.bookingform.ourequipment[0].checked=true;" />Screen</span>
+             <nobr class="rightpad"><input type="checkbox" name="overhead"  $ischecked{overhead}  onClick="document.bookingform.ourequipment[0].checked=true;" />Overhead&nbsp;Projector</span>
+             <span class="nobr"><input                  type="checkbox" name="projector" $ischecked{projector} onClick="document.bookingform.ourequipment[0].checked=true;" />Projector for computer or VCR</span>
           </div><div>&nbsp;</div>
           <div>Anything Else? <input type="text" size="30" name="anythingelse" $value{anythingelse} onClick="document.bookingform.ourequipment[0].checked=true;" /></div>
       </div>
@@ -1154,7 +1154,7 @@ ROOMBOOKINGFIELDS
         if (not $b{isfollowup}) {
           @switchwith = map {
             my %sw = %{getrecord('resched_resources',$_)};
-            "<!-- $_ --><nobr><a href=\"./?action=switch&amp;id=$b{id}&amp;with=$sw{id}&amp;$persistentvars\">$sw{name}</a></nobr>"
+            qq[<!-- $_ --><span class="nobr"><a href="./?action=switch&amp;id=$b{id}&amp;with=$sw{id}&amp;$persistentvars">$sw{name}</a></span>]
           } split /,/, $res{switchwith};
           if (@switchwith) {
             $switchwith = "<div class=\"switchwith\">Switch With:  " . (join "\n              ", @switchwith) . "</div>";
@@ -1193,19 +1193,19 @@ ROOMBOOKINGFIELDS
               <tr><td>Until<sup><a href=\"#footnote2\">2</a></sup>:</td>
                   <td>".(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM'))."</td>
                   <td><input type=\"checkbox\" name=\"doneearlycheckbox\" ".($b{doneearly}?' checked="checked" ' : '')." />&nbsp;Done early at
-                      ".(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN'))."
-                      Followed by: <input name=\"followupname\" value=\"$fbyrec{bookedfor}\" />
-                      <nobr>Initials:<input name=\"followupstaffinitials\" size=\"4\" type=\"text\" value=\"$fbyrec{staffinitials}\" /></nobr>
+                      ".(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN')).qq[
+                      Followed by: <input name="followupname" value="$fbyrec{bookedfor}" />
+                      <span class="nobr">Initials:<input name="followupstaffinitials" size="4" type="text" value="$fbyrec{staffinitials}" /></span>
                       </td></tr>
-              <tr><td><input type=\"submit\" value=\"Save Changes\"></input></td>
+              <tr><td><input type="submit" value="Save Changes" /></td>
                   <td></td>
-                  <td><a class=\"button\" href=\"./?cancel=$b{id}&amp;$persistentvars\">Cancel Booking</a></td></tr>
-              <tr><td>Notes:</td><td colspan=\"2\"><textarea cols=\"50\" rows=\"$noteslines\" name=\"booking_notes\">$ben{notes}</textarea></td></tr>
+                  <td><a class="button" href="./?cancel=$b{id}&amp;$persistentvars">Cancel Booking</a></td></tr>
+              <tr><td>Notes:</td><td colspan="2"><textarea cols="50" rows="$noteslines" name="booking_notes">$ben{notes}</textarea></td></tr>
            </tbody></table><!-- /table beth -->
-        </form>";
+        </form>];
       }
     }
-    print include::standardoutput("Resource Scheduling:  Booking #$ben{id}",
+    print include::standardoutput("Resource Scheduling:  Booking #$b{id}",
                                   ((join $/, @bookinglisting)."<p class=\"info\"><a name=\"footnote1\"><strong>1</strong>:</a>
                                     The <q>From</q> time is the beginning of the timeslot.  If they start partway through the timeslot, use the <q>Started late</q> setting.</p>
                                     <p class=\"info\"><a name=\"footnote2\"><strong>2</strong>:</a>
@@ -1715,7 +1715,7 @@ ROOMBOOKINGFIELDS
                    8 => 'room',  9 => 'room', 10 => 'room',
                   11 => 'test', 12 => 'test', 13 => 'test', 14 => 'test',
                  );
-    my @rescb = map {[$rescat{$$_{id}}, qq[<div><nobr><input type="checkbox" value="$$_{id}" name="view" />&nbsp;$$_{name}</nobr></div>]]} sort { $$a{id} <=> $$b{id} } @res;
+    my @rescb = map {[$rescat{$$_{id}}, qq[<div><span class="nobr"><input type="checkbox" value="$$_{id}" name="view" />&nbsp;$$_{name}</span></div>]]} sort { $$a{id} <=> $$b{id} } @res;
     %rescat = ();
     for (@rescb) {
       push @{$rescat{$$_[0]}}, $$_[1];
@@ -1790,11 +1790,11 @@ sub searchresults {
           </thead><tbody>\n].(join "\n                ", map {
             my %r = %{getrecord('resched_resources', $$_{resource})};
             my $al = (include::isalias(include::normalisebookedfor($$_{bookedfor})))
-              ? qq[<div><cite>(alias for <nobr>] . (
+              ? qq[<div><cite>(alias for <span class="nobr">] . (
                                                     #join ' ', map { ucfirst lc $_ } split /\s+/,
                                                     #include::dealias(include::normalisebookedfor($$_{bookedfor}))
                                                     include::capitalise(include::dealias(include::normalisebookedfor($$_{bookedfor})))
-                                                   ). '</nobr>)</cite></div>'
+                                                   ). '</span>)</cite></div>'
                                                      : '';
             my $dt = DateTime::From::MySQL($$_{fromtime});
             qq[<tr><td class="res$$_{resource}"><a href="./?$co&amp;booking=$$_{id}">$$_{bookedfor}</a>$al</td>
@@ -1872,7 +1872,7 @@ sub daysclosedform {
        <em>all day long</em> on the following date, since we will be closed:</div>
   $dateinputs
   <br />
-  <nobr>Staff Initials: <input type="text" name="staffinitials" size="5" /></nobr>
+  <span class="nobr">Staff Initials: <input type="text" name="staffinitials" size="5" /></span>
   <div>Reason for Closing: <input type="text" name="notes" /></div>
   <br />
   <input type="submit" value="Book Us Closed" />
@@ -1920,23 +1920,23 @@ sub frequserform {
   } 1..12;
   $input{frequser} ||= 10;
   return qq[<form action="index.cgi" method="post">
-       <div><nobr>Look up users who used</nobr>
+       <div><span class="nobr">Look up users who used</span>
             <select name="resource">
               <option value="" selected="selected">anything</option>
               <option value="15,16,17,3">the internet</option>
               <option value="4,5,6">word processing</option>
               <option value="10,11,12">meeting rooms</option>
            </select>
-           <nobr>at least <input type="text" size="5" name="frequser" value="$input{frequser}" /> times</nobr>
+           <span class="nobr">at least <input type="text" size="5" name="frequser" value="$input{frequser}" /> times</span>
        </div>
-       <div><nobr>from <input type="text" size="5" name="startyear" value="] . $soy->year . qq[" />
+       <div><span class="nobr">from <input type="text" size="5" name="startyear" value="] . $soy->year . qq[" />
                        <select name="startmonth">$monthoptionsoy</select>
                        <input type="text" name="startmday" size="3" value="1" />
-            </nobr>
-            <nobr>through <input type="text" size="5" name="endyear" value="] . $now->year . qq[" />
+            </span>
+            <span class="nobr">through <input type="text" size="5" name="endyear" value="] . $now->year . qq[" />
                           <select name="endmonth">$monthoptionnow</select>
                           <input type="text" name="endmday" size="3" value="] . $now->mday . qq[" />
-            </nobr>
+            </span>
        </div>
        <input type="hidden" name="usestyle" value="$input{usestyle}" />
        <input type="hidden" name="useajax" value="$input{useajax}" />
@@ -2436,7 +2436,7 @@ sub usersidebar {
       }
       my $year = $day[0]->year(); my $month = $day[0]->month();
       my $mday = join ",", map { $_->mday() } @day;
-      my $next = "<nobr><a href=\"./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars\">Next ".(($numofdays>1)?"$numofdays days":"day")."</a></nobr>";
+      my $next = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars">Next ].(($numofdays>1)?"$numofdays days":"day")."</a></span>";
       my $subday = $dt[0];
       @day = (); for (1..$numofdays) {
         my $prevday = $subday->clone()->subtract(days=>1);
@@ -2445,7 +2445,7 @@ sub usersidebar {
       }
       my $year = $day[0]->year(); my $month = $day[0]->month();
       my $mday = join ",", map { $_->mday() } @day;
-      my $prev = "<nobr><a href=\"./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars\">Previous ".(($numofdays>1)?"$numofdays days":"day")."</a></nobr>";
+      my $prev = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars">Previous ].(($numofdays>1)?"$numofdays days":"day")."</a></span>";
       $prevnext = "&lt;-- $prev --- $next --&gt;";
     }
   }
@@ -2563,41 +2563,43 @@ sub usersidebar {
            <li><a href="./?action=daysclosed&amp;$persistentvars">mark closed date</a></li>
         </ul></div>
    <div><strong><span onclick="toggledisplay('searchlist','searchmark');" id="searchmark" class="expmark">+</span>
-        <span onclick="toggledisplay('searchlist','searchmark','expand');">Search:</span></strong>
-        <span id="searchlist" style="display: none;">
-        <ul><li><form action="index.cgi" method="post">
-                  <input type="hidden" name="usestyle"   value="$input{usestyle}" />
-                  <input type="hidden" name="useajax"    value="$input{useajax}" />
-                  <nobr><input type="text" name="search" size="12" />&nbsp;<input type="submit" value="Search" /></nobr>
-                </form></li>
-            <li><form action="index.cgi" method="post">
-                  <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-                  <input type="hidden" name="useajax"   value="$input{useajax}" />
-                  <nobr><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></nobr>
-                </form></li>
-            <li><a href="./?frequserform=1&amp;$persistentvars">frequent user lookup</a></li>
-        </ul></span></div>
+          <span onclick="toggledisplay('searchlist','searchmark','expand');">Search:</span></strong>
+          <div id="searchlist" style="display: none;">
+            <ul><li><form action="index.cgi" method="post">
+                      <input type="hidden" name="usestyle"   value="$input{usestyle}" />
+                      <input type="hidden" name="useajax"    value="$input{useajax}" />
+                      <span class="nobr"><input type="text" name="search" size="12" />&nbsp;<input type="submit" value="Search" /></span>
+                    </form></li>
+                <li><form action="index.cgi" method="post">
+                      <input type="hidden" name="usestyle"  value="$input{usestyle}" />
+                      <input type="hidden" name="useajax"   value="$input{useajax}" />
+                      <span class="nobr"><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></span>
+                    </form></li>
+                <li><a href="./?frequserform=1&amp;$persistentvars">frequent user lookup</a></li>
+            </ul>
+          </div>
+        </div>
    <div><strong><span onclick="toggledisplay('aliaslist','aliasmark');" id="aliasmark" class="expmark">+</span>
         <span onclick="toggledisplay('aliaslist','aliasmark','expand');">Aliases:</span></strong>
-        <span id="aliaslist" style="display: none;"><ul>
+        <div id="aliaslist" style="display: none;"><ul>
             <li><a href="index.cgi?action=newaliasfrm">New Alias</a></li>
             <li><form action="index.cgi" method="post">
                   <input type="hidden" name="usestyle"  value="$input{usestyle}" />
                   <input type="hidden" name="useajax"   value="$input{useajax}" />
-                  <nobr><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></nobr>
+                  <span class="nobr"><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></span>
                 </form></li>
-        </ul></span></div>
+        </ul></div></div>
    <div><strong><span onclick="toggledisplay('statslist','statsmark');" id="statsmark" class="expmark">+</span>
         <span onclick="toggledisplay('statslist','statsmark','expand');">Statistics:</span></strong>
-        <span id="statslist" style="display: none;"><ul>
+        <div id="statslist" style="display: none;"><ul>
         <li><a href="./?stats=yesterday&amp;$persistentvars">yesterday</a></li>
         <li><a href="./?stats=lastweek&amp;$persistentvars">last week</a></li>
         <li><a href="./?stats=lastmonth&amp;$persistentvars">last month</a></li>
         <li><a href="./?stats=lastyear&amp;$persistentvars">last year</a></li>
-        </ul></span></div>
+        </ul></div></div>
    <div><strong><span onclick="toggledisplay('visualstylelist','visualstylemark');" id="visualstylemark" class="expmark">+</span>
         <span onclick="toggledisplay('visualstylelist','visualstylemark','expand');">Visual Style:</span></strong>
-        <span id="visualstylelist" style="display: none;"><ul>
+        <div id="visualstylelist" style="display: none;"><ul>
         <!-- Schemes with general appeal: -->
            <li><a href="./?$currentview&amp;usestyle=lightondark&amp;useajax=$input{useajax}">Light on Dark</a></li>
            <li><a href="./?$currentview&amp;usestyle=darkonlight&amp;useajax=$input{useajax}">Dark on Light</a></li>
@@ -2605,14 +2607,15 @@ sub usersidebar {
            <li><a href="./?$currentview&amp;usestyle=browserdefs&amp;useajax=$input{useajax}">Browser Colors</a></li>
            <li><a href="./?$currentview&amp;usestyle=funwithfont&amp;useajax=$input{useajax}">Fun with Fonts</a></li>
            <li><a href="./?$currentview&amp;usestyle=blackonwite&amp;useajax=$input{useajax}">Black on White</a></li>
-        </ul></span></div>
+        </ul></div></div>
    <div><strong><span onclick="toggledisplay('ajaxtechlist','ajaxtechmark');" id="ajaxtechmark" class="expmark">+</span>
         <span onclick="toggledisplay('ajaxtechlist','ajaxtechmark','expand');">AJAX technology:</span></strong>
-        <span id="ajaxtechlist" style="display: none;"><ul>
-           <li><a href="./?$currentview&amp;usestyle=$input{usestyle}&amp;useajax=on">turn AJAX on</li>
-           <li><a href="./?$currentview&amp;usestyle=$input{usestyle}&amp;useajax=off">turn AJAX off</li>
-        </ul></span></div>
-   <!-- <div>More user sidebar options go here.</div></div> -->];
+        <div id="ajaxtechlist" style="display: none;"><ul>
+           <li><a href="./?$currentview&amp;usestyle=$input{usestyle}&amp;useajax=on">turn AJAX on</a></li>
+           <li><a href="./?$currentview&amp;usestyle=$input{usestyle}&amp;useajax=off">turn AJAX off</a></li>
+           </ul></div>
+   </div>
+</div>];
 }
 
 sub uniq {
