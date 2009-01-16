@@ -107,9 +107,10 @@ sub standardoutput {
 $include::doctype
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-   <!-- This page is served by resched, the Resource Scheduling tool -->
+   <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.2 vintage 2008 August 29 -->
+   <!-- resched version 0.7.3 vintage 2009 January 16th. -->
+   <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    $ajaxscript
    $meta
@@ -235,6 +236,25 @@ our $footer = qq[<div class="footer">
 </p></div>\n];
 
 our $localtimezone = main::getvariable('resched', 'time_zone') || "America/New_York";
+
+sub categories {
+  my $categories = main::getvariable('resched', 'categories');
+  my @category;
+  if ($categories) {
+    @category = map {
+      my ($catname, @id) = split /,\s*/, $_;
+      [$catname, @id]
+    } split /\n/, $categories;
+  } else {
+    @category = map {
+      [$$_{name} => $$_{id}]
+    } main::getrecord('resched_resources');
+  }
+  #use Data::Dumper; warn Dumper(+{ categories => \@category,
+  #                                 variable   => $categories,
+  #                               });
+  return @category;
+}
 
 sub sgorpl {
   my ($num, $sg, $pl) = @_;

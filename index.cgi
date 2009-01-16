@@ -1411,14 +1411,18 @@ ROOMBOOKINGFIELDS
       my $q = (dbconn()->prepare("DELETE FROM resched_bookings WHERE id=?"));
       for $booking (split /,\s*/, $input{cancel}) {
         my $fb = getrecord('resched_bookings', $booking);
-        my $parent = $$fb{isfollowup};
-        my $result = $q->execute($booking);
-        push @cancellation, "<p>Deleted: booking #$booking<!-- result: $result --></p>";
-        my $pb = getrecord('resched_bookings', $parent);
-        if ($$pb{followedby} == $booking) {
-          $$pb{followedby} = undef;
-          my $changes = updaterecord('resched_bookings', $pb);
-          push @cancellation, "<p>Changed booking #$parent to not have a followup.</p><!-- changes: @$changes -->";
+        if ($$fb{followedby}) {
+          push @cancellation, "<p>I'm sorry, but I can't delete a booking after the patron has already finished early and been followed by someone else.  It would leave the poor followup booking orphaned.</p>";
+        } else {
+          my $parent = $$fb{isfollowup};
+          my $result = $q->execute($booking);
+          push @cancellation, "<p>Deleted: booking #$booking<!-- result: $result --></p>";
+          my $pb = getrecord('resched_bookings', $parent);
+          if ($$pb{followedby} == $booking) {
+            $$pb{followedby} = undef;
+            my $changes = updaterecord('resched_bookings', $pb);
+            push @cancellation, "<p>Changed booking #$parent to not have a followup.</p><!-- changes: @$changes -->";
+          }
         }
       }
       print include::standardoutput('Cancellation Complete',
@@ -1449,136 +1453,7 @@ ROOMBOOKINGFIELDS
                                     $ab, $input{usestyle});
     }
   } elsif ($input{stats}) {
-    my ($startstats, $endstats);
-    if ($input{stats} eq 'yesterday') {
-      $endstats = DateTime->now(time_zone => $include::localtimezone);
-      $endstats->set_hour(0); $endstats->set_minute(1);
-      $startstats = $endstats->clone()->subtract( days => 1 );
-    } elsif ($input{stats} eq 'lastweek') {
-      $endstats = DateTime->now(time_zone => $include::localtimezone);
-      $endstats->set_hour(0); $endstats->set_minute(1);
-      while ($endstats->wday > 1) { $endstats = $endstats->subtract( days => 1 ); }
-      $startstats = $endstats->clone()->subtract( days => 7 );
-    } elsif ($input{stats} eq 'lastmonth') {
-      $endstats = DateTime->now(time_zone => $include::localtimezone);
-      $endstats->set_hour(0); $endstats->set_minute(1);
-      $endstats->set_day(1); # First of the month.
-      $startstats = $endstats->clone()->subtract( months => 1 );
-    } elsif ($input{stats} eq 'lastyear') {
-      $endstats = DateTime->new(
-                                year => DateTime->now->year(),
-                                month => 1,
-                                day   => 1,
-                               );
-      $startstats = $endstats->clone()->subtract( years => 1 );
-    } elsif ($input{stats} eq 'custom') {
-      $startstats = DateTime->new(
-                                  year  => parsenum($input{startyear}),
-                                  month => parsenum($input{startmonth}),
-                                  day  => parsenum($input{startmday}),
-                                 );
-      $endstats = DateTime->new(
-                                year  => parsenum($input{endyear}),
-                                month => parsenum($input{endmonth}),
-                                day  => parsenum($input{endmday}),
-                               );
-    }
-    # Great, so we gather the stats from $startstats to $endstats.
-    my (@gatheredstat);
-    for (['Internet' => 15, 16, 17, 3],
-         ['Word Processing' => 4, 5, 6],
-         ['Typewriter' => 7],
-         ['Rooms' => 8, 9, 10],
-         ['Practice Zone' => 11,12,13,14]) {
-      ($category, @resid) = @$_;
-      my ($totaltotalbookings, $totaltotalduration);
-      push @gatheredstat, '<div>&nbsp;</div><table><thead><tr><th colspan="4"><strong>' . "$category</strong></th></tr>\n\n";
-            # <div><strong>' . ucfirst $category . '</strong></div>' . "\n<table>\n";
-      for $rid (@resid) {
-        my %r = %{getrecord('resched_resources', $rid)};
-        my $db = dbconn();
-        my $q = $db->prepare('SELECT * FROM resched_bookings WHERE resource=? AND fromtime>=? AND fromtime<? AND bookedfor <> "CLOSED"');
-        $q->execute(
-                    $rid,
-                    DateTime::Format::MySQL->format_datetime($startstats),
-                    DateTime::Format::MySQL->format_datetime($endstats),
-                   );
-        my ($totalbookings, $totalduration);
-        while (my $b = $q->fetchrow_hashref()) {
-          ++$totalbookings;
-          use Data::Dumper; push @gatheredstat, '<!-- ' . Dumper($b) . ' -->' if $debug > 1;
-          if (not $$b{isfollowup}) {
-            my $begin = DateTime::From::MySQL($$b{fromtime});
-            #my $end = DateTime::From::MySQL(  ($$b{doneearly}) ? $$b{doneearly} : $$b{until}  );
-            my $end = DateTime::From::MySQL(  $$b{until}  );
-            my $dur = $end - $begin; # Should yield a DateTime::Duration object.
-            $totalduration = (ref $totalduration ? $totalduration + $dur : $dur);
-          }
-        }
-        my $durinhours = (ref $totalduration ? $totalduration->in_units('hours') : '0');
-        $totalbookings ||= 0;
-        push @gatheredstat, "<tr><td>$r{name}:</td>
-              <td class=\"numeric\">$totalbookings bookings</td>
-              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr>\n";
-        $totaltotalbookings += $totalbookings;
-        $totaltotalduration = (ref $totaltotalduration ? $totaltotalduration + $totalduration : $totalduration);
-      }
-      my $durinhours = (ref $totaltotalduration ? $totaltotalduration->in_units('hours') : '0');
-      push @gatheredstat, "<tr><td><strong>Subtotal:</strong></td>
-              <td class=\"numeric\">$totaltotalbookings bookings</td>
-              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr></table>\n";
-    }
-    # The stats are gathered.  Figure the previous/next links and send it all to the user:
-    my $dur = $endstats - $startstats;
-    my $hrd = human_readable_duration($dur);
-    my $prevstart = $startstats - $dur;
-    my $nextend = $endstats + $dur;
-    my $prevlink = "<a href=\"./?stats=custom"
-      . "&amp;startyear="  . $prevstart->year()  . "&amp;endyear="  . $startstats->year()
-      . "&amp;startmonth=" . $prevstart->month() . "&amp;endmonth=" . $startstats->month()
-      . "&amp;startmday="  . $prevstart->mday()  . "&amp;endmday="  . $startstats->mday()
-      . "&amp;$persistentvars\">&lt;= previous $hrd</a>";
-    my $nextlink = "<a href=\"./?stats=custom"
-      . "&amp;startyear="  . $endstats->year()  . "&amp;endyear="  . $nextend->year()
-      . "&amp;startmonth=" . $endstats->month() . "&amp;endmonth=" . $nextend->month()
-      . "&amp;startmday="  . $endstats->mday()  . "&amp;endmday="  . $nextend->mday()
-      . "&amp;$persistentvars\">next $hrd =&gt;</a>";
-    print include::standardoutput('Usage Statistics',
-                                  qq[<div><strong>Gathering Usage Statistics</strong></div>
-       <div><strong>Starting at 12:01 am on ] . $startstats->ymd() . qq[</strong></div>
-       <div><strong>Ending at 12:01 am on ] . $endstats->ymd() . qq[</strong></div>
-       <div>(excluding bookings for 'CLOSED')</div>
-       @gatheredstat
-       <div>&nbsp;</div>
-       <div class="nav">
-          <div><strong>More Statistics:</strong></div>
-          <div>$prevlink | $nextlink</div>
-          <hr />
-          <form action="index.cgi" method="post">
-             Custom Timeframe:
-             <input type="hidden" name="stats" value="custom" />
-             <input type="hidden" name="usestyle" value="$input{usestyle}" />
-             <input type="hidden" name="useajax" value="$input{useajax}" />
-             <table><thead>
-                <tr><th></th><th>Year</th><th>Month</th><th>Day</th><th>Time</th></tr>
-             </thead><tbody>
-                <tr><td>Start:</td>
-                    <td><input type="text" size="5" name="startyear" value="$input{startyear}" /></td>
-                    <td><input type="text" size="3" name="startmonth" value="$input{startmonth}" /></td>
-                    <td><input type="text" size="3" name="startmday" value="$input{startmday}" /></td>
-                    <td>12:01 am.</td>
-                </tr>
-                <tr><td>Stop:</td>
-                    <td><input type="text" size="5" name="endyear" value="$input{endyear}" /></td>
-                    <td><input type="text" size="3" name="endmonth" value="$input{endmonth}" /></td>
-                    <td><input type="text" size="3" name="endmday" value="$input{endmday}" /></td>
-                    <td>12:01 am.</td>
-                </tr>
-             </tbody></table>
-             <input type="submit" value="Get Statistics for These Dates" />
-          </form>
-       </div>],
-                                  $ab, $input{usestyle});
+    gatherstats();
   } elsif ($input{frequserform}) {
     my $formhtml = frequserform();
     print include::standardoutput('Frequent User Lookup:',
@@ -1766,6 +1641,158 @@ ROOMBOOKINGFIELDS
 
 
 exit 0; # Subroutines follow.
+
+
+sub gatherstats {
+  my (@category);
+  if ($input{resource}) {
+    @category = (['Selected Resource(s)' => split /,\s*/, $input{resource}]);
+  } else {
+    @category = include::categories();
+     # (['Internet' => 15, 16, 17, 3],
+     #  ['Word Processing' => 4, 5, 6],
+     #  ['Typewriter' => 7],
+     #  ['Rooms' => 8, 9, 10],
+     #  ['Practice Zone' => 11,12,13,14]);
+  }
+  my ($startstats, $endstats);
+  if ($input{stats} eq 'yesterday') {
+    $endstats = DateTime->now(time_zone => $include::localtimezone);
+    $endstats->set_hour(0); $endstats->set_minute(1);
+    $startstats = $endstats->clone()->subtract( days => 1 );
+  } elsif ($input{stats} eq 'lastweek') {
+    $endstats = DateTime->now(time_zone => $include::localtimezone);
+    $endstats->set_hour(0); $endstats->set_minute(1);
+    while ($endstats->wday > 1) { $endstats = $endstats->subtract( days => 1 ); }
+    $startstats = $endstats->clone()->subtract( days => 7 );
+  } elsif ($input{stats} eq 'lastmonth') {
+    $endstats = DateTime->now(time_zone => $include::localtimezone);
+    $endstats->set_hour(0); $endstats->set_minute(1);
+    $endstats->set_day(1); # First of the month.
+    $startstats = $endstats->clone()->subtract( months => 1 );
+  } elsif ($input{stats} eq 'lastyear') {
+    $endstats = DateTime->new(
+                              year => DateTime->now->year(),
+                              month => 1,
+                              day   => 1,
+                             );
+    $startstats = $endstats->clone()->subtract( years => 1 );
+  } elsif ($input{stats} eq 'custom') {
+    $startstats = DateTime->new(
+                                year  => parsenum($input{startyear}),
+                                month => parsenum($input{startmonth}),
+                                day  => parsenum($input{startmday}),
+                               );
+    $endstats = DateTime->new(
+                              year  => parsenum($input{endyear}),
+                              month => parsenum($input{endmonth}),
+                              day  => parsenum($input{endmday}),
+                             );
+  } elsif ($input{stats} eq 'overtime') {
+    # This is where we start doing multiple date ranges.
+    # TODO:  implement this.
+  }
+  my @gatheredstat = getstatsforadaterange(\@category, $startstats, $endstats);
+  # Figure the previous/next links and send it all to the user:
+  my $dur = $endstats - $startstats;
+  my $hrd = human_readable_duration($dur);
+  my $prevstart = $startstats - $dur;
+  my $nextend = $endstats + $dur;
+  my $prevlink = "<a href=\"./?stats=custom"
+    . "&amp;startyear="  . $prevstart->year()  . "&amp;endyear="  . $startstats->year()
+    . "&amp;startmonth=" . $prevstart->month() . "&amp;endmonth=" . $startstats->month()
+    . "&amp;startmday="  . $prevstart->mday()  . "&amp;endmday="  . $startstats->mday()
+    . "&amp;$persistentvars\">&lt;= previous $hrd</a>";
+  my $nextlink = "<a href=\"./?stats=custom"
+    . "&amp;startyear="  . $endstats->year()  . "&amp;endyear="  . $nextend->year()
+    . "&amp;startmonth=" . $endstats->month() . "&amp;endmonth=" . $nextend->month()
+    . "&amp;startmday="  . $endstats->mday()  . "&amp;endmday="  . $nextend->mday()
+    . "&amp;$persistentvars\">next $hrd =&gt;</a>";
+  print include::standardoutput('Usage Statistics',
+                                qq[<div><strong>Gathering Usage Statistics</strong></div>
+       <div><strong>Starting at 12:01 am on ] . $startstats->ymd() . qq[</strong></div>
+       <div><strong>Ending at 12:01 am on ] . $endstats->ymd() . qq[</strong></div>
+       <div>(excluding bookings for 'CLOSED')</div>
+       @gatheredstat
+       <div>&nbsp;</div>
+       <div class="nav">
+          <div><strong>More Statistics:</strong></div>
+          <div>$prevlink | $nextlink</div>
+          <hr />
+          <form action="index.cgi" method="post">
+             Custom Timeframe:
+             <input type="hidden" name="stats" value="custom" />
+             <input type="hidden" name="usestyle" value="$input{usestyle}" />
+             <input type="hidden" name="useajax" value="$input{useajax}" />
+             <table><thead>
+                <tr><th></th><th>Year</th><th>Month</th><th>Day</th><th>Time</th></tr>
+             </thead><tbody>
+                <tr><td>Start:</td>
+                    <td><input type="text" size="5" name="startyear" value="$input{startyear}" /></td>
+                    <td><input type="text" size="3" name="startmonth" value="$input{startmonth}" /></td>
+                    <td><input type="text" size="3" name="startmday" value="$input{startmday}" /></td>
+                    <td>12:01 am.</td>
+                </tr>
+                <tr><td>Stop:</td>
+                    <td><input type="text" size="5" name="endyear" value="$input{endyear}" /></td>
+                    <td><input type="text" size="3" name="endmonth" value="$input{endmonth}" /></td>
+                    <td><input type="text" size="3" name="endmday" value="$input{endmday}" /></td>
+                    <td>12:01 am.</td>
+                </tr>
+             </tbody></table>
+             <input type="submit" value="Get Statistics for These Dates" />
+          </form>
+       </div>],
+                                $ab, $input{usestyle});
+}
+
+sub getstatsforadaterange {
+  my ($categories, $startstats, $endstats) = @_;
+  # TODO:  Make this return something that specifies the date range,
+  #        so that if we gather for multiple ranges the results make sense.
+  my @category = @$categories;
+  my (@gatheredstat);
+  for (@category) {
+    ($category, @resid) = @$_;
+    my ($totaltotalbookings, $totaltotalduration);
+    push @gatheredstat, '<div>&nbsp;</div><table><thead><tr><th colspan="4"><strong>' . "$category</strong></th></tr>\n\n";
+    # <div><strong>' . ucfirst $category . '</strong></div>' . "\n<table>\n";
+    for $rid (@resid) {
+      my %r = %{getrecord('resched_resources', $rid)};
+      my $db = dbconn();
+      my $q = $db->prepare('SELECT * FROM resched_bookings WHERE resource=? AND fromtime>=? AND fromtime<? AND bookedfor <> "CLOSED"');
+      $q->execute(
+                  $rid,
+                  DateTime::Format::MySQL->format_datetime($startstats),
+                  DateTime::Format::MySQL->format_datetime($endstats),
+                 );
+      my ($totalbookings, $totalduration);
+      while (my $b = $q->fetchrow_hashref()) {
+        ++$totalbookings;
+        use Data::Dumper; push @gatheredstat, '<!-- ' . Dumper($b) . ' -->' if $debug > 1;
+        if (not $$b{isfollowup}) {
+          my $begin = DateTime::From::MySQL($$b{fromtime});
+          #my $end = DateTime::From::MySQL(  ($$b{doneearly}) ? $$b{doneearly} : $$b{until}  );
+          my $end = DateTime::From::MySQL(  $$b{until}  );
+          my $dur = $end - $begin; # Should yield a DateTime::Duration object.
+          $totalduration = (ref $totalduration ? $totalduration + $dur : $dur);
+        }
+      }
+      my $durinhours = (ref $totalduration ? $totalduration->in_units('hours') : '0');
+      $totalbookings ||= 0;
+      push @gatheredstat, "<tr><td>$r{name}:</td>
+              <td class=\"numeric\">$totalbookings bookings</td>
+              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr>\n";
+      $totaltotalbookings += $totalbookings;
+      $totaltotalduration = (ref $totaltotalduration ? $totaltotalduration + $totalduration : $totalduration);
+    }
+    my $durinhours = (ref $totaltotalduration ? $totaltotalduration->in_units('hours') : '0');
+    push @gatheredstat, "<tr><td><strong>Subtotal:</strong></td>
+              <td class=\"numeric\">$totaltotalbookings bookings</td>
+              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr></table>\n";
+  }
+  return @gatheredstat;
+}
 
 sub searchresults {
   my @searchstring;
@@ -2449,6 +2476,7 @@ sub usersidebar {
       $prevnext = "&lt;-- $prev --- $next --&gt;";
     }
   }
+  my @category = include::categories();
   my $other = '';
   if (not $istoday) {
     # We also want to link to other related items maybe, depending on
@@ -2462,85 +2490,36 @@ sub usersidebar {
     }
 
     my $thisday = (($input{mday} =~ /,|-/)?'These Same Days':'This Same Day');
-    $other = qq[<strong>$thisday:</strong><ul>
-       <li><a href="./?view=15,16,17&amp;$datevars&amp;$persistentvars">Upstairs Internet</a></li>
-       <li><a href="./?view=4,5&amp;$datevars&amp;$persistentvars">Upstairs W.P.</a></li>
-       <li><a href="./?view=3,6&amp;$datevars&amp;$persistentvars">Downstairs</a></li>
-       <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">Meeting Rooms</a></li>
-       <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">Practice Zone</a></li>
-    </ul>];
-
-#    if ($input{view} =~ /^(8|9|10)(?!\d)/ or $resnum == 8 or $resnum == 9 or $resnum == 10) {
-#      # Meeting Rooms:
-#      $other = qq[<strong>$thisday:</strong>
-#          <ul>
-#            <li><a href="./?view=8&amp;$datevars&amp;$persistentvars">Community Room</a></li>
-#            <li><a href="./?view=9&amp;$datevars&amp;$persistentvars">Board Room</a></li>
-#            <li><a href="./?view=10&amp;$datevars&amp;$persistentvars">Staff Room</a></li>
-#            <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">all rooms</a></li>
-#            <li><a href="./?view=7&amp;$datevars&amp;$persistentvars">typewriter</a></li>
-#            <li><a href="./?view=15,16,17,3&amp;$datevars&amp;$persistentvars">internet</a></li>
-#            <li><a href="./?view=4,5,6&amp;$datevars&amp;$persistentvars">word processing</a></li>
-#            <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">practice area</a></li>
-#          </ul>];
-#    } elsif ($input{view} =~/^(15|16|17|3)(?!\d)/ or $resnum == 15 or $resnum == 16 or $resnum == 17 or $resnum == 3) {
-#      # internet:
-#      $other = qq[<div><strong>$thisday:</strong></div><ul>
-#          <li><a href="./?view=15,16,17&amp;$datevars&amp;$persistentvars">internet (upstairs)</a></li>
-#          <li><a href="./?view=3&amp;$datevars&amp;$persistentvars">internet (downstairs)</a></li>
-#          <li><a href="./?view=15,16,17,3&amp;$datevars&amp;$persistentvars">internet (all)</a></li>
-#          <li><a href="./?view=4,5,6&amp;$datevars&amp;$persistentvars">word processing</a></li>
-#          <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">rooms</a></li>
-#          <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">practice area</a></li>
-#        </ul>];
-#    } elsif ($input{view} =~/^(4|5|6|7)(?!\d)/ or ($resnum > 3 and $resnum < 8)) {
-#      # word proc:
-#      $other = qq[<div><strong>$thisday:</strong></div><ul>
-#          <li><a href="./?view=4,5&amp;$datevars&amp;$persistentvars">word processing (upstairs)</a></li>
-#          <li><a href="./?view=6&amp;$datevars&amp;$persistentvars">word processing (downstairs)</a></li>
-#          <li><a href="./?view=4,5,6&amp;$datevars&amp;$persistentvars">word processing (all)</a></li>
-#          <li><a href="./?view=7&amp;$datevars&amp;$persistentvars">typewriter</a></li>
-#          <li><a href="./?view=15,16,17,3&amp;$datevars&amp;$persistentvars">internet</a></li>
-#          <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">meeting rooms</a></li>
-#          <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">practice area</a></li>
-#        </ul>];
-#    } elsif ($input{view} =~ /^(11|12|13)(?!\d)/ or $resnum == 11 or $resnum == 12 or $resnum == 13) {
-#      # practice:
-#      $other = qq[<div><strong>$thisday:</strong></div><ul>
-#          <li><a href="./?view=11&amp;$datevars&amp;$persistentvars">sandbox</a></li>
-#          <li><a href="./?view=12&amp;$datevars&amp;$persistentvars">jukebox</a></li>
-#          <li><a href="./?view=13&amp;$datevars&amp;$persistentvars">b-ball court</a></li>
-#          <li><a href="./?view=14&amp;$datevars&amp;$persistentvars">lecture hall</a></li>
-#          <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">practice (all)</a></li>
-#          <li><a href="./?test=yes&amp;$persistentvars">Special Test Zone</a></li>
-#          <li><a href="./?view=15,16,17,3&amp;$datevars&amp;$persistentvars">internet</a></li>
-#          <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">meeting rooms</a></li>
-#          <li><a href="./?view=4,5,6&amp;$datevars&amp;$persistentvars">word processing</a></li>
-#          <li><a href="./?view=7&amp;$datevars&amp;$persistentvars">typewriter</a></li>
-#        </ul>];
-#    }
+    $other = qq[<strong>$thisday:</strong><ul>\n     ]
+      . (join "\n     ", map {
+        my ($catname, @id) = @$_;
+        qq[<li><a href="./?view=] . (join ",", @id)
+        . qq[&amp;$datevars&amp;$persistentvars">$catname</a></li>]
+      } @category) . qq[</ul>]
+    #  qq[<strong>$thisday:</strong><ul>
+    #   <li><a href="./?view=15,16,17&amp;$datevars&amp;$persistentvars">Upstairs Internet</a></li>
+    #   <li><a href="./?view=4,5&amp;$datevars&amp;$persistentvars">Upstairs W.P.</a></li>
+    #   <li><a href="./?view=3,6&amp;$datevars&amp;$persistentvars">Downstairs</a></li>
+    #   <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">Meeting Rooms</a></li>
+    #   <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">Practice Zone</a></li>
+    #</ul>];
   }
   $other = ($other) ? "<div>$other</div>" : '';
   my $currentview = join '&amp;', map {
     $input{$_} ? "$_=$input{$_}" : ()
   } qw(view overview year month mday startyear startmonth startmday endyear endmonth endmday magicdate);
   my $aftertoday = getvariable('resched', 'sidebar_post_today');
+  my $today = qq[<div><strong>Today:</strong>\n   <ul>
+      ] . (join "\n      ", map {
+        my ($catname, @id) = @$_;
+        qq[<li><a href="./?view=] . (join ',', @id)
+        . qq[&amp;$persistentvars&amp;magicdate=today">$catname</a></li>]
+      } @category) . qq[   </ul>\n   </div>];
   return "<div class=\"sidebar\">
    <div>$prevnext</div>
    <div><a href=\"./?usestyle=$input{usestyle}\"><strong>Choose Resource(s) &amp; Date(s)</strong></a></div>
    $other
-   <div><strong>Today:</strong>
-   <ul>
-      <li><a href=\"./?view=15,16,17&amp;$persistentvars&amp;magicdate=today\">upstairs internet</a></li>
-      <li><a href=\"./?view=4,5&amp;$persistentvars&amp;magicdate=today\">upstairs w.p.</a></li>
-      <li><a href=\"./?view=3,6&amp;$persistentvars&amp;magicdate=today\">downstairs</a></li>
-      <li><a href=\"./?view=$net&amp;$persistentvars&amp;magicdate=today\">internet</a></li>
-      <li><a href=\"./?view=$wp&amp;$persistentvars&amp;magicdate=today\">word processing</a></li>
-      <li><a href=\"./?view=8,9,10&amp;$persistentvars&amp;magicdate=today\">meeting rooms</a></li>
-      <li><a href=\"./?view=7&amp;$persistentvars&amp;magicdate=today\">typewriter</a></li>
-      <li><a href=\"./?view=11,12,13,14&amp;$persistentvars&amp;magicdate=today\">practice zone</a></li>
-   </ul>
-   </div>
+   $today
    $aftertoday
    <div><strong>Rooms (1 week):</strong><ul>
         <li><a href=\"./?view=8&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$oneweek&amp;$persistentvars\">Community Room</a></li>

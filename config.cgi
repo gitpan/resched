@@ -29,9 +29,14 @@ my %cfgvar =
                   description => 'The name of the Integrated Library System software your library uses.',
                   sortkey => 20,
                 },
+   categories => +{
+                   default => '',
+                   description => 'If you divide your resources into categories, list them here, one per line.  (Follow the name of each category by a comma, and the ID numbers of the resources in that category, also separated by commas.)  Links in the sidebar (e.g., under Today) will point to entire categories, showing the resources in that category side-by-side.  Also, the statistics will be grouped and subtotaled by category.  The default is for each resource to be its own category, which works well if you only have two or three resources.',
+                   sortkey => 210, multiline => 1,
+                  },
    sidebar_post_today => +{ default     => '',
                             description => 'Wellformed XHTML snippet to insert in the sidebar between the Today section and the Rooms (1 week) section.  Must be allowable inside a block-level element.',
-                            multiline   => 1, sortkey => 200,
+                            multiline   => 1, sortkey => 220,
                           },
   );
 

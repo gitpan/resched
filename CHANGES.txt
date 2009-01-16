@@ -1,4 +1,37 @@
 See also TODO.txt
+Version 0.7.3:
+  * Fixed a glitch in RELEASE.txt so that the public demo
+    will be put back in working order after each release.
+  * Fixed an obscure bug (198) that triggered when a booking
+    was cancelled after it had been finished early and
+    a followup booking placed, wherein the followup
+    booking became orphaned (and thus invisible), which
+    caused problems.  For now you just get an error message
+    if you try to do this, because I can't think of a
+    legitimate use case for wanting to cancel a booking
+    that has a followup.  If someone actually needs to be
+    able to do that, it can be changed to clear the 
+    isfollowup field on the followup booking, instead
+    of giving the error message.  The code to do that
+    would go where the error message is now.  But unless
+    someone asks for it, I don't see the point.
+  * Galion only:  added booking guidelines link to
+    the sidebar.  This was done via the existing config
+    mechanism for adding things to the sidebar, so it
+    has no impact for any other site.
+  * Did some much-needed refactoring on the stats gathering
+    to get it into a more maintainable state, so I can
+    work with it better.  (This is in preparation for
+    making the stats that can be gathered more flexible.)
+  * Introduced the categories variable, which is now used
+    for subdividing the statistics, and in the sidebar
+    under Today and also This Same Day / These Same Days.
+    The default is for each resource to be its own category,
+    which will do fine if you have only a very small number
+    of resources.  Larger installations will want to
+    specify categories.  Added the variable to config.cgi. 
+  * Released publically 2009 January 16th.  Held off on
+    Galion deployment because it was Friday.
 Version 0.7.2:
   * Fixed a number of markup issues per validator.w3.org
     recommendations:
@@ -8,6 +41,10 @@ Version 0.7.2:
       block-level ul element would be allowed inside it.
     * Got rid of all instances of the nobr element, which
       is not defined in xhtml.  Replaced with a styled class.
+  * In the course of those modifications, I banged into the
+    "annoying \"escaped\" quotes" issue several times and
+    refactored to a more maintainable style.  More of this
+    still needs to be done.
   * Changed script tag from self-closing to paired open/close
     style.  This is theoretically incorrect (it's an empty
     tag pointing to an external script file via src attribute),
@@ -15,8 +52,7 @@ Version 0.7.2:
   * Speaking of which, MSIE now _partly_ works.  For full
     MSIE support a legacy stylesheet is needed and maybe
     some updates to the AJAX stuff.
-  * Deployed 2008 Aug 29 in Galion, public release the
-    same day.
+  * Released publically and deployed in Galion, 2008 Aug 29.
 Version 0.7.1:
   * removed FormInput.pm, which was no longer being used
     by anything.  (See the note in 0.7.0 about why.)

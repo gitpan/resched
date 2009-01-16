@@ -1,4 +1,7 @@
 Desired Changes:
+ * Provide a statistical_categories variable, just like
+   categories but used only by the statistics (not sidebar stuff)
+   and in preference to categories.
  * Figure out why it doesn't work with MSIE, and fix that.
  * For security reasons, passwords should be hashed for storage in
    the database.  (One good reason:  many users would want to use the
@@ -16,9 +19,8 @@ Desired Changes:
    to be attached to specific patrons (rather than just certain
    bookings) and appear any time they book anything.
  * Various things are hardcoded that should not be, e.g., URLs,
-   opening and closing times, resource groupings, meeting
-   room equipment available, resource categories (should be a field
-   in the resources table), ...
+   opening and closing times, meeting room equipment available,
+   some of the stuff in the sidebar, ...
  * There's also stuff pertaining to peculiarities of how our patron
    names look if they're copied and pasted from Polaris, because our
    database has various holdovers from Galaxy, as well as various
@@ -42,6 +44,7 @@ Desired Changes:
  * At this time, db.pl only works with MySQL.  It would be
    nice to also have Postgres support.  In addition to
    db.pl, there is some date-conversion stuff that might
-   need to change, in DateTimeExtensions.pm
+   need to change, in DateTimeExtensions.pm, and some
+   custom SQL in the gatherstatsforadaterange function.
  * The tutorial has never been written, and probably
    should be, and a link added to the sidebar.
