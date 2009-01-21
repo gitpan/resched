@@ -1,4 +1,40 @@
 See also TODO.txt
+Version 0.7.5:
+  * Changed the default stylesheets.  In Galion this means
+    children's-room computers are now more visually distinct from
+    adult-department computers, which will be important with the
+    categories we will be using now.  Of course, any other
+    site will probably want to edit the stylesheets anyway.
+  * Added the flags field (tinytext) to the resources table.
+  * The R flag will mean "this resource is a meeting room".
+  * The X flag will mean that the resource should not be
+    included in automatically generated lists, e.g., in the
+    sidebar.  So, for instance, if you have a phony room in
+    your practice zone that you use for testing the software,
+    you can get it excluded from the sidebars by giving it
+    this flag.  Similarly, if you don't have categories set
+    up, you can stop a certain resource from appearing under
+    Today and These Same Days by giving it the X flag.
+    All other characters are reserved for now:
+    lowercase letters for site-specific use, and all
+    other characters for future use in the main codebase.
+  * Updated isroom to look at the R flag.  (Previously the
+    list of room resources was hardcoded.)
+  * Changed out the hardcoded rooms-related parts of the
+    sidebar to take advantage of the above generalizations.
+    So now if a site sets the R flag on their room resources,
+    these parts of the sidebar are automagically generated.
+    Adding the X flag as well causes exclusion.
+  * Released 2009 January 21, and also deployed in Galion.
+Version 0.7.4:
+  * Updated the magic page titling to take account of
+    the new categories system.  (Still need to do the
+    isroom stuff, though.)
+  * Fixed a minor bug in include::categories that the
+    above work exposed.
+  * Deployed in Galion.  Didn't bother with a public
+    release of this version, because I just did 0.7.3,
+    and there'll be more changes coming anyway.
 Version 0.7.3:
   * Fixed a glitch in RELEASE.txt so that the public demo
     will be put back in working order after each release.

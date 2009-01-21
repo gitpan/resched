@@ -11,9 +11,9 @@ be done when installing this software.
 
  2. Ensure that you have the prerequisite software installed.
    * You need an RDBMS.  At this time MySQL is the only one supported,
-     though it would probably only require minor changes (in db.pl)
-     to support Postgres or any other reasonably capable DBMS.
-   * You need a web server, of course.  I've only tested with apache.
+     though it would probably only require minor changes (mostly in
+     db.pl) to support Postgres or any other reasonably capable DBMS.
+   * You need a web server, of course.  I've only tested with Apache.
      The web server must be configured to serve out the directory
      where you unzipped resched, and the .cgi extension must be
      associated with Perl.
@@ -35,7 +35,7 @@ be done when installing this software.
     database you specified in dbconfig.pl, and grant all privileges on
     that database to the user you specified in dbconfig.pl.  The SQL to
     do this will probably look something like the following:
-    CREATE DATABSE resched;
+    CREATE DATABASE resched;
     GRANT ALL PRIVILEGES ON resched.* TO username@localhost
           IDENTIFIED BY 'somepassword';
 
@@ -43,7 +43,9 @@ be done when installing this software.
     MySQL root user account is password protected.
 
  7. Run the create-tables.pl Perl script.  This will create
-    the empty database tables.
+    the empty database tables.  If you are upgrading from a
+    previous version, check the changelog to see if there
+    are fields you need to add to existing tables.
 
  8. Create at least one user record in the users table, which you and
     your users will use to log into the web interface.  (Even if you

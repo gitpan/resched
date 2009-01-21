@@ -2,6 +2,8 @@ Desired Changes:
  * Provide a statistical_categories variable, just like
    categories but used only by the statistics (not sidebar stuff)
    and in preference to categories.
+ * Fix Choose Resources & Dates to build the list automatically.
+   (Currently I think it's hardcoded.)
  * Figure out why it doesn't work with MSIE, and fix that.
  * For security reasons, passwords should be hashed for storage in
    the database.  (One good reason:  many users would want to use the

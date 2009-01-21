@@ -109,7 +109,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.3 vintage 2009 January 16th. -->
+   <!-- resched version 0.7.5 vintage 2009 January 21. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    $ajaxscript
@@ -243,11 +243,13 @@ sub categories {
   if ($categories) {
     @category = map {
       my ($catname, @id) = split /,\s*/, $_;
-      [$catname, @id]
-    } split /\n/, $categories;
+      [$catname, map { /(\d+)/; $1 } @id]
+    } grep { $_ } split /\r?\n/, $categories;
   } else {
     @category = map {
       [$$_{name} => $$_{id}]
+    } grep {
+      not $$_{flags} =~ /X/
     } main::getrecord('resched_resources');
   }
   #use Data::Dumper; warn Dumper(+{ categories => \@category,

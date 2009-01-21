@@ -631,31 +631,21 @@ if ($auth::user) {
       $pagetitle = $r{name};
       # This is a slightly better title, but maybe we can do better.
     }
+    my %specialview = map {
+      my ($name, @res) = @$_;
+      my $view = join ',', sort { $a <=> $b } @res;
+      ($view => $name)
+    } include::categories();
+    my $thisview = join ",", sort { $a <=> $b } split /,\s*/, $input{view};
     if ($input{magicdate} eq 'today') {
       $pagetitle = "Today's ";
-      if ($input{view} eq '15,16,17,3') {
-        $pagetitle .= "Internet";
-      } elsif ($input{view} eq '4,5,6') {
-        $pagetitle .= "Word Processing";
-      } elsif ($input{view} eq '8,9,10') {
-        $pagetitle .= 'Meeting Rooms';
-      } elsif ($input{view} eq '11,12,13,14') {
-        $pagetitle .= 'Practice Schedule';
-      } elsif ($input{view} eq '7') {
-        $pagetitle = 'Typewriter Today';
+      if ($specialview{$thisview}) {
+        $pagetitle .= $specialview{$thisview};
       } else {
         $pagetitle .= "Schedule";
       }
-    } elsif ($input{view} eq '15,16,17,3') {
-      $pagetitle = 'Internet Schedule';
-    } elsif ($input{view} eq '4,5,6') {
-      $pagetitle = 'Word Processing Schedule';
-    } elsif ($input{view} eq '8,9,10') {
-      $pagetitle = 'Meeting Room Schedule';
-    } elsif ($input{view} eq '11,12,13') {
-      $pagetitle = 'Practice Schedule';
-    } elsif ($input{view} eq '7') {
-      $pagetitle = 'Typewriter Schedule';
+    } elsif ($specialview{$thisview}) {
+      $pagetitle = $specialview{$thisview} . ' Schedule';
     }
     if ($input{magicdate} eq 'monthataglance') {
       $pagetitle .= ': Month at a Glance';
@@ -2008,7 +1998,8 @@ sub last_mday_of_month {
 
 sub isroom {
   my ($resourceid) = @_;
-  return $resourceid if ($resourceid==8 or $resourceid==9 or $resourceid==10 or $resourceid==14);
+  my $res = getrecord('resched_resources', $resourceid);
+  return $resourceid if $$res{flags} =~ /R/;
 }
 
 
@@ -2515,28 +2506,28 @@ sub usersidebar {
         qq[<li><a href="./?view=] . (join ',', @id)
         . qq[&amp;$persistentvars&amp;magicdate=today">$catname</a></li>]
       } @category) . qq[   </ul>\n   </div>];
+  my @room = grep { $$_{flags} =~ /R/ and not $$_{flags} =~ /X/ } getrecord('resched_resources');
+  my $roomsoneweek = qq[<div><strong>Rooms (1 week):</strong><ul>
+        ] . (join "\n       ", map {
+              qq[<li><a href="./?view=$$_{id}&amp;year=].$now->year()."&amp;month=".$now->month().qq[&amp;mday=$oneweek&amp;$persistentvars">$$_{name}</a></li>]
+             } @room)
+          . qq[\n        </ul></div>];
+  my $overview = qq[<div><strong>Overview (month):</strong><ul>
+        ] . (join "\n        ", map {
+              qq[<li><a href="./?overview=$$_{id}&amp;startyear=]    . $now->year()."&amp;startmonth=".$now->month().qq[&amp;$persistentvars">$$_{name}</a></li>]
+             } @room, +{
+                        name => 'all meeting rooms',
+                        id   => (join ',', map { $$_{id} } @room)
+                       })
+          . qq[\n        </ul></div>];
   return "<div class=\"sidebar\">
    <div>$prevnext</div>
    <div><a href=\"./?usestyle=$input{usestyle}\"><strong>Choose Resource(s) &amp; Date(s)</strong></a></div>
    $other
    $today
    $aftertoday
-   <div><strong>Rooms (1 week):</strong><ul>
-        <li><a href=\"./?view=8&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$oneweek&amp;$persistentvars\">Community Room</a></li>
-        <li><a href=\"./?view=9&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$oneweek&amp;$persistentvars\">Board Room</a></li>
-        <li><a href=\"./?view=10&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$oneweek&amp;$persistentvars\">Staff Room</a></li>
-        </ul></div>
-   <!-- div><strong>Rooms (2 weeks):</strong><ul>
-        <li><a href=\"./?view=8&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$twoweeks&amp;$persistentvars\">Community Room</a></li>
-        <li><a href=\"./?view=9&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$twoweeks&amp;$persistentvars\">Board Room</a></li>
-        <li><a href=\"./?view=10&amp;year=".$now->year()."&amp;month=".$now->month()."&amp;mday=$twoweeks&amp;$persistentvars\">Staff Room</a></li>
-        </ul>(Question: Will we actually use those two-week links, or are they a waste of space?)</div -->
-   <div><strong>Overview (month):</strong><ul>
-        <li><a href=\"./?overview=8&amp;startyear=".$now->year()."&amp;startmonth=".$now->month()."&amp;$persistentvars\">Community Room</a></li>
-        <li><a href=\"./?overviewview=9&amp;startyear=".$now->year()."&amp;startmonth=".$now->month()."&amp;$persistentvars\">Board Room</a></li>
-        <li><a href=\"./?overview=10&amp;startyear=".$now->year()."&amp;startmonth=".$now->month()."&amp;$persistentvars\">Staff Room</a></li>
-        <li><a href=\"./?overview=8,9,10&amp;startyear=".$now->year()."&amp;startmonth=".$now->month()."&amp;$persistentvars\">all meeting rooms</a></li>
-        </ul></div>
+   $roomsoneweek
+   $overview
    ".qq[
    <div><strong>Upcoming Events:</strong><ul>
            <li><a href="./?action=daysclosed&amp;$persistentvars">mark closed date</a></li>

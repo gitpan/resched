@@ -48,7 +48,8 @@ $db->prepare(
           showwith tinytext,
           requireinitials integer,
           requirenotes integer,
-          autoex integer
+          autoex integer,
+          flags tinytext
      )"
     )->execute();
 
