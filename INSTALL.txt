@@ -19,9 +19,9 @@ be done when installing this software.
      associated with Perl.
    * Speaking of which, you need Perl, and at least the following
      modules (available from the CPAN): DateTime, DateTime::Span,
-     DateTime::Format::MySQL, DBI, DBD::mysql, Taint, Carp,
-     HTML::Entities, Data::Dumper (for debugging), and possibly one
-     or two others I'm forgetting.
+     DateTime::Format::MySQL, DBI, DBD::mysql, Taint, Carp, 
+     Digest::MD5, HTML::Entities, Data::Dumper (for debugging),
+     and possibly one or two others I'm forgetting.
 
  3. Open ajax.js in a text editor and change the baseuri variable
     (on the second line) so that it contains the public URI of the

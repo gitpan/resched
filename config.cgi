@@ -38,6 +38,11 @@ my %cfgvar =
                             description => 'Wellformed XHTML snippet to insert in the sidebar between the Today section and the Rooms (1 week) section.  Must be allowable inside a block-level element.',
                             multiline   => 1, sortkey => 220,
                           },
+   nonusers => +{
+                 default => 'closed,maintenance,out of order',
+                 description => 'Comma-separated list of special names that resources can be booked for, which should not count toward usage statistics.',
+                 sortkey => 310,
+                },
   );
 
 if ($auth::user) {

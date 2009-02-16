@@ -85,11 +85,12 @@ $db->prepare(
     "CREATE TABLE IF NOT EXISTS
      users (
           id integer NOT NULL AUTO_INCREMENT PRIMARY KEY,
-          username tinytext,
-          password mediumtext,
-          fullname mediumtext,
-          nickname mediumtext,
-          prefs mediumtext
+          username   tinytext,
+          password   mediumtext,
+          hashedpass tinytext,
+          fullname   mediumtext,
+          nickname   mediumtext,
+          prefs      mediumtext
      )"
     )->execute();
 

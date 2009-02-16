@@ -5,12 +5,10 @@ Desired Changes:
  * Fix Choose Resources & Dates to build the list automatically.
    (Currently I think it's hardcoded.)
  * Figure out why it doesn't work with MSIE, and fix that.
- * For security reasons, passwords should be hashed for storage in
-   the database.  (One good reason:  many users would want to use the
-   same username/password combo they use in other contexts.)  This
-   has not been a critical issue for Galion since we use auth_by_ip,
-   but it should be done anyway because the way it currently works
-   is just generally bad practice.
+ * After a suitable deprecation period, we should remove the
+   password field from the database schema, and remove support
+   for checking it from auth.pl.  The hashedpass field should
+   be used instead.
  * There are a lot of "double-quoted strings with \"escaped\" quotes
    in them", which should be convered to qq[a more "modern" quoting
    style]

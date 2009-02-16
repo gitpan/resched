@@ -271,7 +271,8 @@ code {
 .res3,
 td.content > form.res3
 { /* CR internet */
-  background-color:     #FFFF7F;
+/*  background-color:     #FFFF7F; */
+  background-color:     #DDDDAF;
 }
 .res15,
 td.content > form.res15

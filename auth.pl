@@ -5,6 +5,7 @@ require "./db.pl";
 use DateTime;
 require "./datetime-extensions.pl";
 use HTML::Entities;
+use Digest::MD5 qw(md5_base64);
 
 $|++;
 
@@ -12,7 +13,7 @@ $auth::user = undef; # authbox sets this magic variable, which can be queried fr
 
 my $loggedin = 'You are logged in as';
 
-my $debug=1;  my $status = "<!-- using auth.pl for authentication/login -->\n";
+my $debug=0;  my $status = "<!-- using auth.pl for authentication/login -->\n";
 my $default_expiration = DateTime->now->add(days => 1, hours => 12);
 
 # Also requires the database accessed by db.pl to have an authcookies table with the following fields:
@@ -130,7 +131,13 @@ sub authbox {
     if ($r and $debug) {
       $status .= "<!-- Got record for user $$r{id}. -->\n";
     }
-    if ($r and ($$r{password} eq $main::input{AUTH_login_password})) {
+    if ($r and
+        (
+         ($$r{password} and not $$r{hashedpass} and $$r{password} eq $main::input{AUTH_login_password})
+         or
+         ($$r{hashedpass} eq md5_base64($main::input{AUTH_login_password}))
+        )
+       ) {
       $status .= "<!-- Verified password.  Setting user to $$r{id} -->\n";
       $auth::user = $$r{id};
       # TODO: Kill off any previous cookies for this user, unless the

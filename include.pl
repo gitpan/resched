@@ -90,7 +90,8 @@ sub capitalise {
   my @part = split /\s+/, $name;
   return join ' ', map {
     my $n = ucfirst lc $_;
-    $n =~ s/^(Ma?c|Van)(\w)/$1 . uc $2/e;
+    $n =~ s/^(Ma?c|Van)(\w)/$1 . ucfirst $2/e;
+    $n =~ s/\b(ii|iii|iv|vi|vii|viii)\b/uc $1/ei;
     $n
   } @part;
 }
@@ -109,7 +110,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.5 vintage 2009 January 21. -->
+   <!-- resched version 0.7.6 vintage 2009 February 16. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    $ajaxscript

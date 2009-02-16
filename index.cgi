@@ -485,7 +485,8 @@ if ($auth::user) {
         my $extendlink = '';
         $extendlink = '<a href="./?'."extend=$$x{id}&amp;$persistentvars".'"><img src="/img/arrow-down-blue-v2.png" class="extendarrow" width="36" height="21" /></a>';
         if ($$x{doneearly}) {
-          $donetext = "(available)";
+          my $doneat = include::twelvehourtimefromdt(DateTime::From::MySQL($$x{doneearly}));
+          $donetext = "(available at $doneat)";
           $extendlink = '';
           $$c{tdcontent}[$ts] .= "<hr class=\"doneearly\" />";
         }
@@ -1702,7 +1703,7 @@ sub gatherstats {
                                 qq[<div><strong>Gathering Usage Statistics</strong></div>
        <div><strong>Starting at 12:01 am on ] . $startstats->ymd() . qq[</strong></div>
        <div><strong>Ending at 12:01 am on ] . $endstats->ymd() . qq[</strong></div>
-       <div>(excluding bookings for 'CLOSED')</div>
+       <div>(excluding bookings for ] . (getvariable('resched', 'nonusers')) . qq[)</div>
        @gatheredstat
        <div>&nbsp;</div>
        <div class="nav">
@@ -1742,6 +1743,7 @@ sub getstatsforadaterange {
   #        so that if we gather for multiple ranges the results make sense.
   my @category = @$categories;
   my (@gatheredstat);
+  my %exclude = map { (lc $_) => 1 } split /,\s*/, (getvariable('resched', 'nonusers') || 'closed,maintenance,out of order');
   for (@category) {
     ($category, @resid) = @$_;
     my ($totaltotalbookings, $totaltotalduration);
@@ -1750,11 +1752,14 @@ sub getstatsforadaterange {
     for $rid (@resid) {
       my %r = %{getrecord('resched_resources', $rid)};
       my $db = dbconn();
-      my $q = $db->prepare('SELECT * FROM resched_bookings WHERE resource=? AND fromtime>=? AND fromtime<? AND bookedfor <> "CLOSED"');
+      my $q = $db->prepare('SELECT * FROM resched_bookings '
+                           . 'WHERE resource=? AND fromtime>=? AND fromtime<?'
+                           . 'AND bookedfor NOT IN (' . (join ',', map { '?' } keys %exclude) . ')');
       $q->execute(
                   $rid,
                   DateTime::Format::MySQL->format_datetime($startstats),
                   DateTime::Format::MySQL->format_datetime($endstats),
+                  (keys %exclude),
                  );
       my ($totalbookings, $totalduration);
       while (my $b = $q->fetchrow_hashref()) {

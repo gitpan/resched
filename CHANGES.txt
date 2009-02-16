@@ -1,4 +1,26 @@
 See also TODO.txt
+Version 0.7.6:
+  * Introduced the nonusers variable, to allow the site
+    admin to customize which special names resources can
+    be booked for that won't count toward usage stats.
+  * The "available" link (shown when a booking is done
+    early but has no followup) now indicates the time
+    that the resource became available.
+  * The capitalise routine now correctly handles roman
+    numerals up through VIII (if they appear as a word
+    by themselves, not embedded in a name).  Is this
+    enough, or should it go clear to Louis XVI?
+  * Initial support for hashed passwords (md5_base64).
+    This adds Digest::MD5 to the list of required
+    modules, but it's worth it.  If a user's record
+    has the hashedpass field set, this is checked
+    instead of the password field.  It is recommended,
+    that you clear the password fields of all user
+    records to NULL after setting the hashedpass values.
+  * Note that if you are upgrading from an earlier
+    version, you will need to add the hashedpass field
+    (tinytext) to the users table before you can use it.
+  * Released 2009 February 16th, and also deployed in Galion.
 Version 0.7.5:
   * Changed the default stylesheets.  In Galion this means
     children's-room computers are now more visually distinct from
@@ -6,6 +28,8 @@ Version 0.7.5:
     categories we will be using now.  Of course, any other
     site will probably want to edit the stylesheets anyway.
   * Added the flags field (tinytext) to the resources table.
+    NOTE:  if you upgrade from a previous version, you need
+    to alter the table to add this field.
   * The R flag will mean "this resource is a meeting room".
   * The X flag will mean that the resource should not be
     included in automatically generated lists, e.g., in the
@@ -15,7 +39,7 @@ Version 0.7.5:
     this flag.  Similarly, if you don't have categories set
     up, you can stop a certain resource from appearing under
     Today and These Same Days by giving it the X flag.
-    All other characters are reserved for now:
+  * All other characters (as flags) are reserved for now:
     lowercase letters for site-specific use, and all
     other characters for future use in the main codebase.
   * Updated isroom to look at the R flag.  (Previously the
@@ -65,7 +89,7 @@ Version 0.7.3:
     The default is for each resource to be its own category,
     which will do fine if you have only a very small number
     of resources.  Larger installations will want to
-    specify categories.  Added the variable to config.cgi. 
+    specify categories.  Added the variable to config.cgi.
   * Released publically 2009 January 16th.  Held off on
     Galion deployment because it was Friday.
 Version 0.7.2:
