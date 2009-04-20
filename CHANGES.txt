@@ -1,4 +1,31 @@
 See also TODO.txt
+Version 0.7.7:
+  * Introduced sitecode.pl for holding site-specific code.  The main
+    codebase will include hooks for some of this.
+  * Moved site-specific aspects of name normalization into sidecode.pl
+    and made some slight adjustments for Galion.
+  * Added preliminary support for the Combine Rooms feature (bug 199).
+    Note that if you are upgrading from an earlier version, you will
+    need to add the combine field (tinytext) to the resched_resources
+    table before you can use it.  The field holds a comma-separted
+    list of the the record id numbers of the other rooms you want to
+    be able to book together with the one in the current record.
+  * Fixed the Choose Resources & Dates list to be generated from
+    include::categories (previously it was hardcoded).
+  * Introduced some (technically redundant) clarifications to the
+    blackonwite stylesheet to compensate for bugs in IE7 (probably
+    also IE6) that were causing illegibility.  I believe this makes
+    the thing mostly usable with IE7, though getting the AJAX-based
+    "Quick" feature to support IE is still on the TODO list.
+  * Repeat the default alternate stylesheet at the end of the list
+    of alternatives, so that IE6/7 will give it priority.  This is
+    still far short of real alternate stylesheet support, but hey,
+    it's not my fault you're using an old version of the worst
+    browser available.  At least now IE7 users will have *some*
+    flexibility when it comes to visual styling.  Incidentally,
+    this workaround probably violates the spirit of some RFC or
+    another, but it doesn't seem to bother Gecko.
+  * Released 2009 April 20.
 Version 0.7.6:
   * Introduced the nonusers variable, to allow the site
     admin to customize which special names resources can

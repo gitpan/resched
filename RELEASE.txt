@@ -7,7 +7,7 @@ These are the steps I follow to do a public release:
  4. Copy everything to resched-public/resched/
  5. cd to that directory
  7. In ajax.js, fix the baseuri variable
- 8. rm dbconfig.pl *galion* *~
+ 8. rm dbconfig.pl sitecode.pl *galion* *~
  9. cd ..
 10. Create a version-number-named symlink to resched
 11. zip up the contents of the version-number-named

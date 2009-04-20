@@ -47,7 +47,6 @@ function handleResponse() {
 
 function sendajaxrequest(myargs) {
    var uri = baseuri + '?' + myargs;
-   //alert(uri);
    request.open("GET", uri, true);
    request.onreadystatechange=handleResponse;
    request.send(null);

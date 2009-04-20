@@ -4,6 +4,7 @@
 use strict;
 require "./db.pl";
 package include;
+require "./sitecode.pl"; # Site-specific code should be moved into there.
 
 my $ajaxscript = qq[<script language="javascript" src="ajax.js" type="text/javascript">\n</script>\n];
 
@@ -80,7 +81,8 @@ sub normalisebookedfor {
   my ($rawname) = @_;
   my $normalname = lc $rawname;
   if ($normalname =~ /(.+)[,]\s*(.+)/) { $normalname = "$2 $1"; }
-  $normalname =~ s/[(]IN[)]//i; $normalname =~ s/\s+/ /g;
+  $normalname = sitecode::normalisebookedfor($normalname);
+  $normalname =~ s/\s+/ /g;
   $normalname =~ s/[.]//g;
   return $normalname;
 }
@@ -110,7 +112,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.6 vintage 2009 February 16. -->
+   <!-- resched version 0.7.7 vintage 2009 April 20. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    $ajaxscript
@@ -200,11 +202,11 @@ sub include::style {
                funwithfont => qq[<link rel="stylesheet" type="text/css" media="screen" href="funwithfont.css" title="Fun with Fonts" />],
                blackonwite => qq[<link rel="stylesheet" type="text/css" media="screen" href="blackonwite.css" title="Black on White" />],
               );
-  my $style = join "\n", map {
+  my $style = join "\n", (map {
     $style{$_}
   } sort {
     ($a eq $s) ? -1 : (($b eq $s) ? 1 : ($b cmp $a))
-  } keys %style;
+  } keys %style), ($s ? $style{$s} : '');
   my $nonajaxstyle = qq[
 <style type="text/css">
 

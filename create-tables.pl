@@ -46,6 +46,7 @@ $db->prepare(
           schedule integer,
           switchwith tinytext,
           showwith tinytext,
+          combine tinytext,
           requireinitials integer,
           requirenotes integer,
           autoex integer,

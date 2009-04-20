@@ -394,6 +394,7 @@ if ($auth::user) {
       # already booked, then we place the empty timeslots at the
       # correct intervals, then we calculate how many rows each one
       # takes up.
+      #use Data::Dumper; warn Dumper(+{ col => $c });
       my @b = grep {
         # We don't want followup bookings.  (Those get picked up later
         # under the booking they follow up.)
@@ -416,6 +417,7 @@ if ($auth::user) {
         my $msm = ((60*$fromtime->hour())+$fromtime->min()); # minutes since midnight.
         my $msb = $msm - $tablestarttime; # minutes since beginning time of table.
         my $ts = ($msb / $gcf);
+        #use Data::Dumper; warn Dumper(+{ fromtime => $fromtime->hms(), msm => $msm, msb => $msb, ts => $ts });
 
         # So, how many timeslots long is this booking?
         my $until    = DateTime::From::MySQL($$b{until});
@@ -431,6 +433,7 @@ if ($auth::user) {
         # days, so we can just take hours and minutes here.
         my $durmins = $duration->minutes + (60*$duration->hours) + (int ($duration->seconds / 60));
         my $durts = int (0.75 + ($durmins / $gcf)); # duration in number of timeslots.
+        #use Data::Dumper(); warn Dumper(+{ durmins => $durmins, durts => $durts });
         for (1 .. ($durts-1)) { # timeslot 0 is the one we already marked, for a total of $durts slots.
           $$c{tscont}[$ts+$_] = 1;
         }
@@ -821,6 +824,18 @@ if ($auth::user) {
   </div>
 ROOMBOOKINGFIELDS
       }
+      my $combinerooms = '';
+      if ($res{combine}) {
+        my @r = map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine};
+        my $cr = join "\n        ", map {
+          my $r = $_;
+          qq[<div class="combiner"><input type="checkbox" id="combiner$$r{id}" name="combiner$$r{id}" />
+             <label for="combiner$$r{id}">$$r{name}</label></div>]
+        } @r;
+        $combinerooms = qq[<div class="p"><div><strong>Combine Rooms:</strong></div>
+        $cr
+       </div>];
+      }
       print include::standardoutput("Booking $res{name} for $input{when}",
                                     qq[
        <form action="./" method="POST" name="bookingform" class="res$res{id}">
@@ -856,7 +871,7 @@ ROOMBOOKINGFIELDS
        <p><div>$notesheading:</div><textarea name="notes" cols="50" rows="5"></textarea></p>
        $submitafternotes
        <hr />
-       <p><div><strong>Recurring Booking:</strong></div>
+       <div class="p"><div><strong>Recurring Booking:</strong></div>
           <div>Book this resource <select name="recur" id="recurformselect" onchange="changerecurform();">
                <option value="">Just This Once</option>
                <option value="daily">Daily</option>
@@ -889,24 +904,31 @@ ROOMBOOKINGFIELDS
                    <table class="table"><thead>
                        <tr><th>year</th><th>month</th><th>day</th></tr>
                    </thead><tbody>
-                       <tr><td>].$when->year."</td><td>".$when->month_abbr."</td><td>".$when->mday."</td></tr>
-                       <tr><td><input type=\"text\" name=\"recurlistyear1\" size=\"5\" value=\"".$when->year."\" /></td>
-                           <td><select name=\"recurlistmonth1\">$monthoptions</select></td>
-                           <td><input type=\"text\" name=\"recurlistmday1\" size=\"3\" /></td>
+                       <tr><td>].$when->year."</td><td>".$when->month_abbr."</td><td>".$when->mday.qq[</td></tr>
+                       <tr><td><input type="text" name="recurlistyear1" size="5" value="].$when->year.qq[" /></td>
+                           <td><select name="recurlistmonth1">$monthoptions</select></td>
+                           <td><input type="text" name="recurlistmday1" size="3" /></td>
                        </tr>
-                       <tr id=\"insertmorelisteddateshere\" />
+                       <tr id="insertmorelisteddateshere" />
                    </tbody></table>
-                   <input type=\"button\" value=\"Add Another Date\" onclick= \"augmentdatelist('".$when->year."');\"/>
+                   <input type="button" value="Add Another Date" onclick= "augmentdatelist('".$when->year."');"/>
                    <p />
                </span>
-       </p>
+       </div>
+       $combinerooms
        $submit
-    </div></form>\n", $ab, $input{usestyle});
+    </div></form>\n], $ab, $input{usestyle});
     }
     # ****************************************************************************************************************
   } elsif ($input{action} eq 'makebooking') {
     my %res = %{getrecord('resched_resources', $input{resource})};
     my %sch = %{getrecord('resched_schedules', $res{schedule})};
+    my @restobook = (\%res);
+    if ($res{combine}) {
+      for my $r (map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine}) {
+        push @restobook, $r if $input{"combiner$$r{id}"};
+      }
+    }
     my $when = DateTime::From::MySQL($input{when});
     my @when = ($when);
     if ($input{recur} eq 'listed') {
@@ -992,7 +1014,12 @@ ROOMBOOKINGFIELDS
       $input{notes} .= "\n==============================\n$extranotes";
     }
     my $redirect_header = redirect_header(\%res, $when);
-    my @booking_result = map { attemptbooking(\%res, \%sch, $_) } @when;
+    my @booking_result = map {
+      my $w = $_;
+      map {
+        attemptbooking($_, \%sch, $w)
+      } @restobook;
+    } @when;
     undef $redirect_header if $didyoumean_invoked;
     if (@booking_result == 1 and $booking_result[0] =~ /class=.error./) {
       undef $redirect_header;
@@ -1575,19 +1602,25 @@ ROOMBOOKINGFIELDS
     # possible resources and a way to choose a date (or list of dates
     # and ranges of dates).
     my @res = getrecord('resched_resources');
-    my %rescat = (
-                  15 => 'inet', 16 => 'inet', 17 => 'inet',  3 => 'inet',
-                   4 => 'proc',  5 => 'proc',  6 => 'proc',  7 => 'proc',
-                   8 => 'room',  9 => 'room', 10 => 'room',
-                  11 => 'test', 12 => 'test', 13 => 'test', 14 => 'test',
-                 );
+    my %rescat =
+      map {
+        my $cat = $_;
+        my $catname = shift @$cat;
+        map { $_ => $catname } @$cat;
+      } include::categories();
+#      (
+#                  15 => 'inet', 16 => 'inet', 17 => 'inet',  3 => 'inet',
+#                   4 => 'proc',  5 => 'proc',  6 => 'proc',  7 => 'proc',
+#                   8 => 'room',  9 => 'room', 10 => 'room',
+#                  11 => 'test', 12 => 'test', 13 => 'test', 14 => 'test',
+#                 );
     my @rescb = map {[$rescat{$$_{id}}, qq[<div><span class="nobr"><input type="checkbox" value="$$_{id}" name="view" />&nbsp;$$_{name}</span></div>]]} sort { $$a{id} <=> $$b{id} } @res;
     %rescat = ();
     for (@rescb) {
       push @{$rescat{$$_[0]}}, $$_[1];
     }
     my $reslist = (join "\n", map {
-      qq[<div class="category">]
+      qq[<div class="category"><div><strong>$_:</strong></div>]
          . (join "\n", @{$rescat{$_}})
          . "</div>"
        } sort keys %rescat);

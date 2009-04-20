@@ -2,9 +2,10 @@ Desired Changes:
  * Provide a statistical_categories variable, just like
    categories but used only by the statistics (not sidebar stuff)
    and in preference to categories.
- * Fix Choose Resources & Dates to build the list automatically.
-   (Currently I think it's hardcoded.)
- * Figure out why it doesn't work with MSIE, and fix that.
+ * Figure out why the AJAX-based Quick feature doesn't work with MSIE,
+   and fix that.  (I suspect it's due to the same issue I previously
+   fixed in the forum software, and I can probably bring the same
+   fix over from there.)
  * After a suitable deprecation period, we should remove the
    password field from the database schema, and remove support
    for checking it from auth.pl.  The hashedpass field should
