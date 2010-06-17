@@ -43,6 +43,11 @@ my %cfgvar =
                  description => 'Comma-separated list of special names that resources can be booked for, which should not count toward usage statistics.',
                  sortkey => 310,
                 },
+   show_booking_timestamp => +{
+                               default     => 1,
+                               description => 'Should the booking timestamp be shown? (1=yes, 0=no)',
+                               sortkey     => 501,
+                              },
   );
 
 if ($auth::user) {

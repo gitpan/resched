@@ -1185,27 +1185,30 @@ ROOMBOOKINGFIELDS
         my $untidt = DateTime::From::MySQL( $b{until}, undef, 'C');
         my $earldt = DateTime::From::MySQL(($b{doneearly} ? $b{doneearly} : $b{until}),undef,'D');
         my %fbyrec; %fbyrec = %{getrecord('resched_bookings', $b{followedby})} if $b{followedby};
-        push @bookinglisting, "<form action=\"./\" method=\"post\">
-           <input type=\"hidden\" name=\"booking\" value=\"$b{id}\" />
-           <input type=\"hidden\" name=\"action\" value=\"changebooking\" />
-           <input type=\"hidden\" name=\"usestyle\" value=\"$input{usestyle}\" />
-           <input type=\"hidden\" name=\"useajax\" value=\"$input{useajax}\" />
+        my $ts = ((getvariable('resched', 'show_booking_timestamp')
+                   ? qq[ <span class="tsmod">last modified $b{tsmod}</span>]
+                   : ''));
+        push @bookinglisting, qq[<form action="./" method="post">
+           <input type="hidden" name="booking" value="$b{id}" />
+           <input type="hidden" name="action" value="changebooking" />
+           <input type="hidden" name="usestyle" value="$input{usestyle}" />
+           <input type="hidden" name="useajax" value="$input{useajax}" />
            <table>
-              <col></col><col width=\"190px\"></col><col></col>
+              <col></col><col width="190px"></col><col></col>
            <tbody>
               <tr><td>Resource</td>
-                  <td colspan=\"2\">$res{name}<input type=\"hidden\" name=\"booking_resource\" value=\"$b{resource}\"></input>
+                  <td colspan="2">$res{name}<input type="hidden" name="booking_resource" value="$b{resource}"></input>
                       $switchwith
                       </td></tr>
-              <tr><td>Booked For:</td><td colspan=\"2\"><input type=\"text\" name=\"booking_bookedfor\" value=\"$ben{bookedfor}\" size=\"30\"></input>$aliasnote</td></tr>
-              <tr><td>Booked By:</td><td>".(($user{id}==$b{bookedby})
+              <tr><td>Booked For:</td><td colspan="2"><input type="text" name="booking_bookedfor" value="$ben{bookedfor}" size="30"></input>$aliasnote</td></tr>
+              <tr><td>Booked By:</td><td colspan="2">].(($user{id}==$b{bookedby})
                                             ?"$user{nickname}<!-- $user{id} -->"
                                             :"<del>$b{bookedby}</del> <ins>$user{id} ($user{nickname})</ins>"
-                                           )."<input type=\"hidden\" name=\"booking_bookedby\" value=\"$user{id}\"></input>
-                                          (initials:&nbsp;<input type=\"text\" size=\"3\" name=\"staffinitials\" value=\"$b{staffinitials}\" />)
+                                           ).qq[<input type="hidden" name="booking_bookedby" value="$user{id}"></input>
+                                          (initials:&nbsp;<input type="text" size="3" name="staffinitials" value="$b{staffinitials}" />) $ts
                                      </td></tr>
-              <tr><td>From<sup><a href=\"#footnote1\">1</a></sup>:</td>
-                  <td>".(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK'))."</td>
+              <tr><td>From<sup><a href="#footnote1">1</a></sup>:</td>
+                  <td>].(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK'))."</td>
                   <td><input type=\"checkbox\" name=\"latestart\" ".($b{latestart} ? ' checked="checked" ' : '')." />&nbsp;Started late at
                       ".(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL'))."</td></tr>
               <tr><td>Until<sup><a href=\"#footnote2\">2</a></sup>:</td>

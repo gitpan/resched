@@ -1,5 +1,5 @@
 var request = false;
-var baseuri = 'http://cgi.galion.lib.oh.us/staff/resched-public/resched/dynamic-info.cgi';
+var baseuri = '/staff/resched-public/resched/dynamic-info.cgi';
 try {
   request = new XMLHttpRequest();
 } catch (trymicrosoft) {

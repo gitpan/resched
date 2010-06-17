@@ -6,10 +6,9 @@ Desired Changes:
    and fix that.  (I suspect it's due to the same issue I previously
    fixed in the forum software, and I can probably bring the same
    fix over from there.)
- * After a suitable deprecation period, we should remove the
-   password field from the database schema, and remove support
-   for checking it from auth.pl.  The hashedpass field should
-   be used instead.
+ * After a suitable deprecation period, we should remove support in
+   auth.pl for checking the deprecated (unhashed) password field.  The
+   hashedpass field should be used instead.
  * There are a lot of "double-quoted strings with \"escaped\" quotes
    in them", which should be convered to qq[a more "modern" quoting
    style]
@@ -22,12 +21,6 @@ Desired Changes:
  * Various things are hardcoded that should not be, e.g., URLs,
    opening and closing times, meeting room equipment available,
    some of the stuff in the sidebar, ...
- * There's also stuff pertaining to peculiarities of how our patron
-   names look if they're copied and pasted from Polaris, because our
-   database has various holdovers from Galaxy, as well as various
-   local kludges.  This should all be ruthlessly ripped out of the
-   public version and replaced with config variables or hooks or
-   something to allow for equivalent local customization.
  * General refactoring would not go amiss.  Among other things,
    a lot of actions in the big if/elsif/elsif block ought to be
    factored out to subroutines.

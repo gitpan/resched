@@ -355,3 +355,8 @@ td.content > form.res13
 tr.cfgvar > td {
   border-bottom:        1px dotted #FFE6BC;
 }
+
+span.tsmod {
+  font-size:           60%;
+  font-style:          italic;
+}

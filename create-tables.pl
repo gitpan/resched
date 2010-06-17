@@ -87,7 +87,6 @@ $db->prepare(
      users (
           id integer NOT NULL AUTO_INCREMENT PRIMARY KEY,
           username   tinytext,
-          password   mediumtext,
           hashedpass tinytext,
           fullname   mediumtext,
           nickname   mediumtext,

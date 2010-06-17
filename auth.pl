@@ -26,7 +26,7 @@ my $default_expiration = DateTime->now->add(days => 1, hours => 12);
 # Additionally, requires a users table with the following fields:
 #  id              AUTO_INCREMENT   (All tables manipulated by db.pl must have this field.)
 #  username        mediumtext       (username for login)
-#  password        mediumtext       (password for login)
+#  hashedpass      tinytext         (MD5 Base64 hashed version of the password, for login)
 
 # If the users table contains a nickname or firstname or fullname
 # field, it will be used (in that order of preference), but this is
@@ -211,32 +211,31 @@ sub authbox {
     my $more = "";
     if ($callback) { $more = $callback->($auth::user); }
     my $uri = "http://$ENV{HTTP_HOST}$ENV{SCRIPT_NAME}";
-    my $href = (-e 'user.cgi') ? " href=\"user.cgi?user=$auth::user\"" : '';
-    return "<div class=\"authbox\">$status
+    my $href = (-e 'user.cgi') ? qq[ href="user.cgi?user=$auth::user"] : '';
+    return qq[<div class="authbox">$status
        <div>$loggedin <a$href>$calltheuser</a>.</div>
-       <div><a href=\"$uri?AUTH_logout=$auth::user\">Log Out</a></div>
-       $more</div>";
+       <div><a href="$uri?AUTH_logout=$auth::user">Log Out</a></div>
+       $more</div>];
   } else {
     # User is not logged in currently.  Display login form.
     # The real trick, though, is we want to preserve any current
     # input (_unless_ it is auth related) to be processed after
     # the login.
     my %input_to_keep = map { ((/^AUTH_/)?(undef):(($_=>$main::input{$_}))); } keys %main::input;
-    my $result = "<!-- ****************** BEGIN AUTHBOX ****************** -->\n$status\n"
-                  . "<div class=\"authbox\"><!-- TODO:  put login image here? -->\n"
-                  . "   <div>You are currently Anonymous (not logged in).</div>\n"
-                  . "   <form method=\"POST\" action=\"$uri\">\n";
+    my $result = qq[<!-- ****************** BEGIN AUTHBOX ****************** -->\n$status
+     <div class="authbox"><!-- TODO:  put login image here? -->
+      <div>You are currently Anonymous (not logged in).</div>
+      <form method="POST" action="$uri">\n];
     for (keys %input_to_keep) {
-      $result   .= "      <input type=\"hidden\" name=\"$_\" value=\"$input_to_keep{$_}\"></input>\n";
+      $result   .= qq[      <input type="hidden" name="$_" value="$input_to_keep{$_}"></input>\n];
     }
-    $result     .= "      <div>Username:  <input type=\"text\"     name=\"AUTH_login_username\" size=\"12\"></input></div>\n";
-    $result     .= "      <div>Password:  <input type=\"password\" name=\"AUTH_login_password\" size=\"12\"></input></div>\n";
+    $result     .= qq[      <div>Username:  <input type="text"     name="AUTH_login_username" size="12"></input></div>
+      <div>Password:  <input type="password" name="AUTH_login_password" size="12"></input></div>\n];
     if (not $auth::ALWAYS_RESTRICT_IP) {
-      $result   .= "      <div><input type=\"checkbox\" name=\"AUTH_login_restrict_ip\">Restrict session to my current IP address only.</input></div>\n";
+      $result   .= qq[      <div><input type="checkbox" name="AUTH_login_restrict_ip">Restrict session to my current IP address only.</input></div>\n];
     }
-    $result     .= "      <div><input type=\"submit\" value=\"Log In\"></input></div>\n";
-    $result     .= "   </form></div>"
-                    . "<!-- ******************  END AUTHBOX  ****************** -->";
+    $result     .= qq[      <div><input type="submit" value="Log In"></input></div>\n   </form></div>
+    <!-- ******************  END AUTHBOX  ****************** -->];
     return $result;
   }
 }

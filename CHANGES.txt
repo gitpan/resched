@@ -1,4 +1,24 @@
 See also TODO.txt
+
+Version 0.7.8:
+  * Introduced the "favicon", resched.ico.  Individual sites can
+    of course customize or replace this icon.
+  * create-tables.pl no longer creates the deprecated plain-text
+    password field, only the hashedpass field.  The password field is
+    FOR NOW still supported, for backward compatibility, but sites
+    should go ahead and fill in the hashedpass fields for all users,
+    because cleartext password storage will become unsupported in a
+    future release.
+  * Cleaned up a bunch of backslash-intensive string quoting in
+    auth.pl, for improved code legibility and maintainability.
+  * Also cleaned up some of the backslash-intensive quoting in
+    the code that shows a booking; it still needs more.
+  * Added a variable (to config.cgi), show_booking_timestamp.
+    If this is set, the code that shows a booking will now
+    show the timestamp.
+  * Enhanced capitalise() to correctly handle names like O'Reilly and
+    O'Neal.
+  * Released 2010 June 17.
 Version 0.7.7:
   * Introduced sitecode.pl for holding site-specific code.  The main
     codebase will include hooks for some of this.

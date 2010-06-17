@@ -92,7 +92,7 @@ sub capitalise {
   my @part = split /\s+/, $name;
   return join ' ', map {
     my $n = ucfirst lc $_;
-    $n =~ s/^(Ma?c|Van)(\w)/$1 . ucfirst $2/e;
+    $n =~ s/^(Ma?c|Van|O')(\w)/$1 . ucfirst $2/e;
     $n =~ s/\b(ii|iii|iv|vi|vii|viii)\b/uc $1/ei;
     $n
   } @part;
@@ -102,9 +102,10 @@ sub standardoutput {
   # This returns the complete http headers and the html
   # calling code must define sub main::usersidebar that
   # returns an appropriate div.
-  my ($title, $content, $ab, $style, $meta) = @_;
+  my ($title, $content, $ab, $style, $meta, $favicon) = @_;
   my $cws = contentwithsidebar($content, "$ab\n".main::usersidebar());
   my $css = include::style($style);
+  $favicon ||= 'resched.ico';
   return qq[Content-type: $include::content_type\n$auth::cookie
 
 $include::doctype
@@ -112,9 +113,10 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.7 vintage 2009 April 20. -->
+   <!-- resched version 0.7.8 vintage 2010 June 17. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
+   <link rel="SHORTCUT ICON" href="$favicon" />
    $ajaxscript
    $meta
    $css
