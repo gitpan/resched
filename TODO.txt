@@ -9,9 +9,9 @@ Desired Changes:
  * After a suitable deprecation period, we should remove support in
    auth.pl for checking the deprecated (unhashed) password field.  The
    hashedpass field should be used instead.
- * There are a lot of "double-quoted strings with \"escaped\" quotes
-   in them", which should be convered to qq[a more "modern" quoting
-   style]
+ * There are still a lot of "double-quoted strings with \"escaped\"
+   quotes in them", which should be convered to qq[a more "modern"
+   quoting style]
  * It would be good to add some POD, to make the software more 
    discoverable on the CPAN.
  * The whole thing should be profiled for perf bottlenecks.

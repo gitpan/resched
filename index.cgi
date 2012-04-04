@@ -223,469 +223,7 @@ if ($auth::user) {
 
   } elsif ($input{view}) {
     # User wants to see the hour-by-hour schedule for certain resource(s).
-    my $now = DateTime->now(time_zone => $include::localtimezone);
-    my @res = split /,\s*/, $input{view};
-
-    my %res;
-    for my $id (@res) {
-      $res{$id} =
-        {
-         %{getrecord('resched_resources', $id)},
-         # Bookings are filled in below, after we know what dates we want.
-        };
-    }
-    my @s = map {       scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
-    my %s = map { $_ => scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
-
-    # We want the starttimes as numbers of minutes since midnight.
-    my @starttime = uniq map { $$_{firsttime} =~ m/(\d{2})[:](\d{2})[:]\d{2}/; (60*$1)+$2; } @s;
-    # (These are used to calculate the gcf and also for the table's start time for the first row.)
-
-    my $gcf;
-    { # Now, we need the gcf interval.  Start based on schedules...
-
-      # We need is the gcf of the durations of the _offsets_ (not of
-      # the start times themselves).  The algo below takes
-      # permutations, which will run in O(n*n) time, so don't feed it
-      # large numbers of distinct starttimes.
-      my @offset = uniqnonzero map {
-        my $st = $_;
-        map { abs ($st - $_) } @starttime;
-      } @starttime;
-
-      # Now, we need the gcf of these offsets taken together with the
-      # intervals from the actual schedules:
-      $gcf = arithgcf(@offset, uniqnonzero map { $$_{intervalmins} } @s);
-    }
-    # $gcf now is the number of minutes per table row.  We can get the
-    # rowspan figure for each cell by dividing the duration it
-    # represents by this $gcf figure.  We can also calculate the times
-    # to label each row with using this figure and the time from the
-    # row above.
-
-    # For the table's start time, we just want the earliest of the
-    # starttimes:
-    my $t = $starttime[0]; for (@starttime) { $t = $_ if $_ < $t }
-    $tablestarttime=$t;
-
-    # What day(s) are we showing?
-    my $year  = ($input{year}  || ((localtime)[5] + 1900));
-    my $month = ($input{month} || ((localtime)[4] + 1));
-    my $prevday;
-    @dt = map {
-      my $mday = $_;
-      if ($mday <= $prevday) {
-        # $mday = 1;
-        $month++;
-        if ($month > 12) {
-          $year++; $month=1;
-        }
-      } $prevday = $mday;
-      my $dt = DateTime->new(year   => $year,
-                             month  => $month,
-                             day    => $mday,
-                             hour   => int($t / 60),
-                             minute => $t % 60,
-                            );
-      if ($dt->dow() < 7) {
-        $dt;
-      } else {
-        (); # No Sundays.  We are closed.
-      }
-    } map {
-      if (/(\d+)-(\d+)/) {
-        $1 .. $2
-      } else {
-        $_
-      }
-    } split /,/, ($input{mday}  ||  (localtime)[3]);
-    # Each of these DateTime values is a starting time for the top row
-    # in a set of columns (one column per resource).
-
-    # Now we can fill in the bookings:
-    {
-      my $mindt = $dt[0];
-      my $maxdt = $dt[-1]->clone()->add(days => 1);
-      for my $id (@res) {
-        $res{$id}{bookings} = [ get_timerange_bookings($id, $mindt, $maxdt) ];
-      }
-    }
-
-    $debugtext .= "<p><div><strong>Viewing Schedules for @res:</strong></div>$/<pre>".encode_entities(Dumper(\%res))."</pre></p>
-<p><div><strong>Schedules:</strong></div>$/<pre>".encode_entities(Dumper(\@s))."</pre></p>
-<p>$gcf</p>
-<p>Starting Times:<pre>".encode_entities(Dumper(@dt))."</pre></p>\n" if $debug;
-
-    my %endingtime =
-      (
-       #(map { $_ => [20, 30] } (1..4)), # 8:30pm Monday - Thursday,
-       #5 => [18, 0], # 6pm on Friday,
-       #6 => [17, 0], # 5pm on Saturday,
-       #7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
-       (map { $_ => [20, 20] } (1..4)), # 8:20pm Monday - Thursday,
-       5 => [17, 50], # 5:50pm on Friday,
-       6 => [16, 50], # 4:50pm on Saturday,
-       7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
-      );
-
-    @col;
-    # For each day we're showing, we want columns for each resource.
-    for $dt (@dt) {
-      for $r (@res) {
-        my $end = $endingtime{$dt->wday()};
-        my $schedule = $s{$res{$r}->{schedule}};
-        $$schedule{firsttime} =~ /(\d{2})[:](\d{2})[:]\d+/;
-        my ($beghour, $begmin) = ($1, $2);
-        push @col,
-          +{
-            res => $res{$r},
-            # cdt => DateTime->new( # DateTime for current row.
-            #                      year   => $dt->year(),
-            #                      month  => $dt->month(),
-            #                      day    => $dt->day(),
-            #                      hour   => $dt->hour(),
-            #                      minute => $dt->minute(),
-            #                     ),
-            cdt => $dt->clone(),
-            sdt => DateTime->new( # DateTime for first timeslot at beginning of day.
-                                 year   => $dt->year(),
-                                 month  => $dt->month(),
-                                 day    => $dt->day(),
-                                 hour   => $beghour,
-                                 minute => $begmin,
-                                ),
-            end => DateTime->new( # DateTime for end of day
-                                 year   => $dt->year(),
-                                 month  => $dt->month(),
-                                 day    => $dt->day(),
-                                 hour   => $$end[0],
-                                 minute => $$end[1],
-                                ),
-            # rsp => (($$schedule{intervalmins}) / $gcf),
-          };
-      }
-    }
-
-    $debugtext .= "<p>\%endingtime: ".(encode_entities(Dumper(\%endingtime)))."</p>
-<p><div><strong>Columns:</strong></div><div><pre>".encode_entities(Dumper(\@col))."</pre></div></p>";
-
-    push @thead, (qq[<tr><th rowspan="2" class="label">Time Range</th>]
-                  .(join '',
-                    map {
-                      my $dt = $_;
-                      my $thclass  = ($dt->ymd eq $now->ymd) ? 'todayth' : 'dateth';
-                      qq[<th colspan="].(scalar @res). qq[" class="$thclass"><a href="./?view=$input{view}&amp;year=].
-                          ($dt->year())."&amp;month=".($dt->month)."&amp;mday=".($dt->mday()).
-                          qq[&amp;$persistentvars">]
-                          .($dt->day_name()) . ", " .($dt->ymd())."</a></th>"
-                        } @dt
-                   )."<!-- dt: @dt --></tr>\n");
-    push @thead, ("<tr>".( join '',
-                           map {
-                             "<!-- res: @res -->".join'', map {
-                               qq[<th class="res$res{$_}{id}"><a href="./?view=$res{$_}{id}&amp;year=$input{year}&amp;month=$input{month}&amp;mday=$input{mday}&amp;$persistentvars">$res{$_}{name}</a></th>]} @res
-                           } @dt
-                         )."<!-- dt: @dt --></tr>\n");
-    my $maxnts; # Each iteration of the loop below calculates an $nts
-                # value (number of timeslots); we want the largest one
-                # for the next loop.
-    for $c (@col) {
-      # We must construct the column.  First we place appointments
-      # already booked, then we place the empty timeslots at the
-      # correct intervals, then we calculate how many rows each one
-      # takes up.
-      #use Data::Dumper; warn Dumper(+{ col => $c });
-      my @b = grep {
-        # We don't want followup bookings.  (Those get picked up later
-        # under the booking they follow up.)
-        not $$_{isfollowup}
-      } grep {
-        # Of the bookings (which are already the ones for the entire
-        # timerange we're doing), we only want the bookings that are
-        # for the correct specific date.  (This is relevant if more
-        # than one date is being looked at side-by-side.)
-        my $bdt = DateTime::From::MySQL($$_{fromtime});
-        my $cdt = $$c{cdt};
-        (    ($bdt->year()  == $cdt->year())
-         and ($bdt->month() == $cdt->month())
-         and ($bdt->mday()  == $cdt->mday()))
-      } @{$$c{res}{bookings}};
-
-      for $b (@b) {
-        my $fromtime = DateTime::From::MySQL($$b{fromtime});
-        # But, what timeslots are we taking up, then?
-        my $msm = ((60*$fromtime->hour())+$fromtime->min()); # minutes since midnight.
-        my $msb = $msm - $tablestarttime; # minutes since beginning time of table.
-        my $ts = ($msb / $gcf);
-        #use Data::Dumper; warn Dumper(+{ fromtime => $fromtime->hms(), msm => $msm, msb => $msb, ts => $ts });
-
-        # So, how many timeslots long is this booking?
-        my $until    = DateTime::From::MySQL($$b{until});
-        #my $duration = DateTime->new(
-        #                             year   => $until->year(),
-        #                             month  => $until->month(),
-        #                             day    => $until->day(),
-        #                             hour   => $until->hour(),
-        #                             minute => $until->minute(),
-        #                            )->subtract_datetime($fromtime);
-        my $duration = $until->clone()->subtract_datetime($fromtime);
-        # We do not provide a mechanism for appointments spanning
-        # days, so we can just take hours and minutes here.
-        my $durmins = $duration->minutes + (60*$duration->hours) + (int ($duration->seconds / 60));
-        my $durts = int (0.75 + ($durmins / $gcf)); # duration in number of timeslots.
-        #use Data::Dumper(); warn Dumper(+{ durmins => $durmins, durts => $durts });
-        for (1 .. ($durts-1)) { # timeslot 0 is the one we already marked, for a total of $durts slots.
-          $$c{tscont}[$ts+$_] = 1;
-        }
-
-        # We can't make the td element yet, because we don't know the
-        # rowspan value yet, but we *can* now calculate the *contents*
-        # of the td element:
-        my $x = $b; my $inits = ($$x{staffinitials} ? " --$$x{staffinitials}" : '');
-        $$c{tdcontent}[$ts] = "\n<!-- Actual Booking:  *********************************************************
-           fromtime => $$x{fromtime},    until => $$x{until},
-           duration => ".encode_entities(Dumper(\$duration))."
-           durmins  => $durmins,         durts => $durts,
-           --><a href=\"./?booking=$$x{id}&amp;$persistentvars\">".
-             (
-              include::capitalise(include::dealias(include::normalisebookedfor($$x{bookedfor})))
-             ).
-             (($$x{latestart}) ? (' (' . include::twelvehourtimefromdt(DateTime::From::MySQL($$x{latestart})) . ')') : '') .
-             (($$x{notes})
-              ?" <abbr title=\"".encode_entities($$x{notes}.$inits).qq["><img width="24" height="24" alt="[Notes]" src="notes.png"></img></abbr>]
-              :"")
-               ."</a>
-              <!-- Booked by $$x{bookedby} for timeslot from $$x{fromtime} to $$x{until} (done: $$x{doneearly}, followed by $$x{followedby}) -->";
-        my $bookingcount = 1;
-        my $foundfollowedbyempty;
-        while ($$x{followedby} and not $foundfollowedbyempty) {
-          my $p = $x;
-          $x = getrecord('resched_bookings', $$x{followedby});
-          if ($$x{id}) {
-            my $notes = ''; if ($$x{notes}) {
-              $notes = " <abbr title=\"".encode_entities($$x{notes})."\"><img width=\"24\" height=\"24\" alt=\"[Notes]\" src=\"notes.png\" /></abbr>";
-            }
-            my ($fbytime) = ($$x{fromtime} =~ /(\d+[:]\d+)/);
-            my $fbytimeth = include::twelvehourtime($fbytime);
-            $$c{tdcontent}[$ts] .= "<hr class=\"doneearly\"></hr>\n<!-- Followup Booking: ########################################################
-           fromtime => $$x{fromtime},    until => $$x{until},
-           --><a href=\"./?booking=$$x{id}&amp;$persistentvars\">".
-              (
-               include::capitalise(include::dealias(include::normalisebookedfor($$x{bookedfor})))
-              ) ." ($fbytimeth)$notes</a>
-              <!-- Booked by $$x{bookedby} for timeslot from $$x{fromtime} to $$x{until} (done: $$x{doneearly}, followed by $$x{followedby}) -->";
-            $bookingcount += 1; # I have the hr element styled so that this is enough.
-          } else {
-            $x = $p; $foundfollowedbyempty = 1;
-          }
-        }
-        # Question: is there room to insert some blank lines before
-        # the done early link?  That question gets addressed below,
-        # when calculating the rowspan values, but we'll need the
-        # bookingcount:
-        $$c{bookingcount}[$ts] = $bookingcount;
-        $$c{tdcontent}[$ts] .= "<!-- and now the done early link: -->"; my $donetext = "done early?";
-        my $extendlink = '';
-        $extendlink = '<a href="./?'."extend=$$x{id}&amp;$persistentvars".'"><img src="/img/arrow-down-blue-v2.png" class="extendarrow" width="36" height="21" /></a>';
-        if ($$x{doneearly}) {
-          my $doneat = include::twelvehourtimefromdt(DateTime::From::MySQL($$x{doneearly}));
-          $donetext = "(available at $doneat)";
-          $extendlink = '';
-          $$c{tdcontent}[$ts] .= "<hr class=\"doneearly\" />";
-        }
-        ++$uniqueid;
-        my $delink = ($input{useajax} eq 'off')
-          ? qq[<a href="./?doneearly=$$x{id}&amp;$persistentvars" class="avail">$donetext</a>]
-          : qq[<a class="avail" onclick="onemoment('dnid$uniqueid'); sendajaxrequest('ajax=doneearlyform&amp;containerid=dnid$uniqueid&amp;bookingid=$$x{id}&amp;$persistentvars')">$donetext</a>];
-        $$c{tdcontent}[$ts] .= qq[
-          <div id="dnid$uniqueid">
-             $extendlink
-             <div style="text-align: right;" class="doneearly">$delink</div>
-          </div>];
-        # Since these are actual bookings, not mere scheduled
-        # timeslots, we want to extend them downward for their
-        # duration, so that regularly scheduled timeslots cannot break
-        # in in the middle of them.  However, that's done below, after
-        # we place the regularly scheduled thingies, when we calculate
-        # the rowspan values.
-      }
-      # Now, the regularly scheduled empty timeslots (if they're not taken):
-      # How many timeslots are there total (on the table, counting between ones)?
-      my $esm = (60*$$c{end}->hour() + $$c{end}->min()); # Minutes since midnight at close (end of day).
-
-      my $ssm = (60*$$c{sdt}->hour() + $$c{sdt}->min()); # Minutes since midnight for first timeslot.
-
-      my $nts = int ((($esm - $tablestarttime) / $gcf) + 0.5); # If a timeslot is at least half there, show it.
-      $maxnts = $nts if $maxnts < $nts;
-      my $sts = int ((($ssm - $tablestarttime) / $gcf));
-      # $nts is number of (raw) timeslots.
-      # $sts is the first one to match the interval.
-      $$c{sch} = $s{$$c{res}{schedule}};
-      { # Calculate number of regularly scheduled appointment timeslots (tsl) for the column:
-        $$c{tsl} = int ((($esm - $ssm) / $$c{sch}{intervalmins}) + 0.5); # If a timeslot is at least half there, go ahead and prepare rows for it.
-      }
-      my $tsc; for $tsc (0..($$c{tsl}-1)) {
-        my $tsn = $sts + ($tsc * (int ($$c{sch}{intervalmins} / $gcf))); # Timeslot Number
-        my $msm = $ssm + ($tsn * $gcf);
-        my $when = DateTime->new(# This is WRONG for columns that start their first timeslot
-                                 # later than another displayed column, because $ssm is larger
-                                 # for some columns than for others (as it should be), and we
-                                 # don't know at this time the correct amount to subtract; this
-                                 # is FIXED later (where dectime() is called) once we have done
-                                 # some other calculations (so that we do know what to subtract)
-                                 # before the results are output to the user.
-                                 year   => $$c{sdt}->year(),
-                                 month  => $$c{sdt}->month(),
-                                 day    => $$c{sdt}->day(),
-                                 hour   => (int ($msm / 60) % 24),
-                                 minute => $msm % 60,
-                                );
-        my $whentext = $when->date() . " " . $when->time();# . "&amp;tsn=$tsn&amp;gcf=$gcf&amp;ssm=$ssm";
-        my $resid = $$c{res}{id};
-        if (not $$c{tscont}[$tsn]) {
-          my ($availstuff);
-          if (isroom($resid)
-              # or ($$c{sch}{intervalmins} ne $$c{sch}{durationmins}) # This MAY not matter, provided the page will reload anyway when the resource is booked.
-              # or (not $$c{sch}{durationlock}) # This MAY not matter too, provided the user can always do things the old way if a different duration is wanted.
-              or ($input{useajax} eq 'off')) {
-            $availstuff = qq[<!-- *** Regularly Scheduled Interval ***
-             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>];
-          } else {
-            ++$uniqueid;
-            $availstuff = qq[<span id="unid$uniqueid"><!-- *** Regularly Scheduled Interval ***
-             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>
-                <input type="button" value="Quick!" onclick="onemoment('unid$uniqueid'); sendajaxrequest('ajax=newbookingform&amp;containerid=unid$uniqueid&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars');" />
-             </span>];
-          }
-          $$c{tdcontent}[$tsn] ||= $availstuff;
-          push @{$$c{contentnote}}, +{
-                                      tsc => $tsc,
-                                      tsn => $tsn,
-                                      con => $$c{tdcontent}[$tsn],
-                                      msm => $msm,
-                                      whe => $whentext,
-                                     };
-        }
-      }
-      # If the very first timeslot at the top of the day isn't taken, put a blank td in it:
-      #$$c{tdcontent}[0] ||= "<!-- This Space Intentionally Left Blank -->";
-      if (not $$c{tdcontent}[0]) {
-        $$c{ssmoffset} += $gcf; # This still needs to be multiplied by
-                                # the rowspan value, which hasn't been
-                                # calculated yet.
-        $$c{tdcontent}[0] = "<!-- This Space Intentionally Left Blank ($$c{ssmoffset}) -->";
-      }
-      # Also, mark off the final closing time at the end of the day:
-      $$c{tdcontent}[$nts] = "(closing)<!-- nts: $nts -->";
-    }
-    for $c (@col) {
-      # Calculate the rowspan values:
-      my $rsp = 0;
-      for $tsn (reverse 0 .. $maxnts) {
-        if ($$c{tdcontent}[$tsn]) {
-          $$c{tdrowspan}[$tsn] = ++$rsp;
-          # Now, what about inserting some blank lines (if there's room) before the doneearly link?
-          my $bl = $rsp - $$c{bookingcount}[$tsn] - 1;
-          # Subtracting 1 accounts for the line the done early link takes for itself.
-          for (1..$bl) {
-            $$c{tdcontent}[$tsn] =~ s(<!-- and now the done early link: -->)(<div class="doneearlyspacer">&nbsp;</div><!-- and now the done early link: -->);
-          }
-          $rsp = 0;
-        } else {
-          $rsp++;
-        }
-      }
-    }
-    # Great, now create the actual rows...  but how many of them?
-    my $lastendtime = (sort { $a <=> $b } map { $$_{end}->min() + (60*$$_{end}->hour()) } @col)[-1];
-    my $numofrows = ($lastendtime - $tablestarttime) / $gcf;
-    for $row (0 .. $numofrows) {
-      my $rowtime = $tablestarttime + ($gcf * $row);
-      my ($label, $beforeopen, $labelclass); {
-        my $ampm = "<!-- am -->";
-        my $hour = int ($rowtime / 60);
-        if ($hour < 9) {
-          $beforeopen = 1;
-        }
-        if ($hour > 12) {
-          $ampm = "<!-- pm -->"; $hour -= 12;
-        }
-        $min  = sprintf "%02d", ($rowtime % 60);
-        $label = "<!-- $rowtime -->$hour:$min$ampm";
-        if ($beforeopen) { $label = '<!-- before open -->'; $labelclass = 'beforeopen' }
-      }
-      $labelclass ||= 'label';
-      push @tbody, "<tr><!-- $row --><td class=\"$labelclass\">$label</td>" .
-        (join $/, map {
-          $$_{tdcontent}[$row]
-            ? sub {
-              my ($c, $r) = @_;
-              my $class = ($$c{tdcontent}[$r] =~ /\(closed\)/) ? qq[ class="closed"] : qq[ class="res$$c{res}{id}"];
-              if ($$c{ssmoffset}) {
-                $$c{tdcontent}[$r] =~ s!(\d+[:]\d+[:]\d+)!dectime($1,$gcf,$$c{tdrowspan}[0])!eg; }
-              return "<td rowspan=\"$$_{tdrowspan}[$row]\"$class>$$_{tdcontent}[$row]</td>\n              ";
-            }->($_, $row)
-              : "<!-- no tdcontent -->"
-        } @col)
-        . "</tr>";
-    }
-    my $pagetitle = 'View Schedule'; # Sane default.
-    if ($input{view} =~ /^(\d+)$/) {
-      my %r = %{getrecord('resched_resources', $1)};
-      $pagetitle = $r{name};
-      # This is a slightly better title, but maybe we can do better.
-    }
-    my %specialview = map {
-      my ($name, @res) = @$_;
-      my $view = join ',', sort { $a <=> $b } @res;
-      ($view => $name)
-    } include::categories();
-    my $thisview = join ",", sort { $a <=> $b } split /,\s*/, $input{view};
-    if ($input{magicdate} eq 'today') {
-      $pagetitle = "Today's ";
-      if ($specialview{$thisview}) {
-        $pagetitle .= $specialview{$thisview};
-      } else {
-        $pagetitle .= "Schedule";
-      }
-    } elsif ($specialview{$thisview}) {
-      $pagetitle = $specialview{$thisview} . ' Schedule';
-    }
-    if ($input{magicdate} eq 'monthataglance') {
-      $pagetitle .= ': Month at a Glance';
-    }
-    my $updateargs   = qq[ajax=updates-p&since=] .
-      (DateTime::Format::ForDB($now)) . qq[&resource=$input{view}];
-    #warn "Update args: $updateargs\n";
-    my $updatesuri = updates_uri([split /,\s*/, $input{view}], $now);
-    my $updatescript = qq[<script language="javascript">
-       /* Issue a check for updates request periodically. */
-       function checkforupdates() {
-         sendajaxrequest('$updateargs');
-       }
-       function retrieveupdates() {
-         window.location.href = '$updatesuri';
-         window.location.reload();
-       }
-       window.setInterval(checkforupdates,  120000 );
-    </script>];
-    my $nownote = qq[<div class="currenttime">The following is current as of ] . (include::datewithtwelvehourtime(DateTime->now( time_zone => $include::localtimezone ))) . qq[</div>];
-    print include::standardoutput($pagetitle,
-       qq[
-       <!-- table start time: $tablestarttime -->
-       <!-- table end time:   $lastendtime -->
-       <!-- number of rows:   $numofrows -->
-       $messagetouser
-       $nownote
-       <table border=\"1\" class=\"scheduletable\">
-       <thead>].(join"\n",@thead).qq[</thead>
-       <tbody>].(join"\n",@tbody).qq[</tbody>
-       </table><!-- /table aleph -->],
-                                  $ab, $input{usestyle},
-                                  (($input{extend} ? $redirectheader : '')
-                                   . $updatescript),
-                                 );
-    # ****************************************************************************************************************
+    doview();
   } elsif ($input{action} eq 'didyoumean') {
     my %booking = %{getrecord('resched_bookings', $input{booking})};
     $booking{id} or warn 'Taxes and Hot Fish Juice';
@@ -729,8 +267,8 @@ if ($auth::user) {
       $untilp = "Booking from ".(
                                  include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
                                 ).qq[ to
-          <span class="nobr">$hourselect<strong>:</strong><input type="text" name="untilmin" size="3" value="].($until->minute())."\" /></span>
-          on " . $when->date() . ".";
+          <span class="nobr">$hourselect<strong>:</strong><input type="text" name="untilmin" size="3" value="].($until->minute())
+            .qq[" /></span>\n          on ] . $when->date() . ".";
     }
 
     # Collision Detection:  What if it's already been booked?
@@ -911,7 +449,7 @@ ROOMBOOKINGFIELDS
                        </tr>
                        <tr id="insertmorelisteddateshere" />
                    </tbody></table>
-                   <input type="button" value="Add Another Date" onclick= "augmentdatelist('".$when->year."');"/>
+                   <input type="button" value="Add Another Date" onclick= "augmentdatelist('].$when->year.qq[');"/>
                    <p />
                </span>
        </div>
@@ -1669,6 +1207,474 @@ ROOMBOOKINGFIELDS
 
 exit 0; # Subroutines follow.
 
+sub doview {
+  # User wants to see the hour-by-hour schedule for certain resource(s).
+  # This was originally inlined above, but it was long, so I factored
+  # it out to a subroutine for maintainability.
+    my $now = DateTime->now(time_zone => $include::localtimezone);
+    my @res = split /,\s*/, $input{view};
+
+    my %res;
+    for my $id (@res) {
+      $res{$id} =
+        {
+         %{getrecord('resched_resources', $id)},
+         # Bookings are filled in below, after we know what dates we want.
+        };
+    }
+    my @s = map {       scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
+    my %s = map { $_ => scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
+
+    # We want the starttimes as numbers of minutes since midnight.
+    my @starttime = uniq map { $$_{firsttime} =~ m/(\d{2})[:](\d{2})[:]\d{2}/; (60*$1)+$2; } @s;
+    # (These are used to calculate the gcf and also for the table's start time for the first row.)
+
+    my $gcf;
+    { # Now, we need the gcf interval.  Start based on schedules...
+
+      # We need is the gcf of the durations of the _offsets_ (not of
+      # the start times themselves).  The algo below takes
+      # permutations, which will run in O(n*n) time, so don't feed it
+      # large numbers of distinct starttimes.
+      my @offset = uniqnonzero map {
+        my $st = $_;
+        map { abs ($st - $_) } @starttime;
+      } @starttime;
+
+      # Now, we need the gcf of these offsets taken together with the
+      # intervals from the actual schedules:
+      $gcf = arithgcf(@offset, uniqnonzero map { $$_{intervalmins} } @s);
+    }
+    # $gcf now is the number of minutes per table row.  We can get the
+    # rowspan figure for each cell by dividing the duration it
+    # represents by this $gcf figure.  We can also calculate the times
+    # to label each row with using this figure and the time from the
+    # row above.
+
+    # For the table's start time, we just want the earliest of the
+    # starttimes:
+    my $t = $starttime[0]; for (@starttime) { $t = $_ if $_ < $t }
+    $tablestarttime=$t;
+
+    # What day(s) are we showing?
+    my $year  = ($input{year}  || ((localtime)[5] + 1900));
+    my $month = ($input{month} || ((localtime)[4] + 1));
+    my $prevday;
+    @dt = map {
+      my $mday = $_;
+      if ($mday <= $prevday) {
+        # $mday = 1;
+        $month++;
+        if ($month > 12) {
+          $year++; $month=1;
+        }
+      } $prevday = $mday;
+      my $dt = DateTime->new(year   => $year,
+                             month  => $month,
+                             day    => $mday,
+                             hour   => int($t / 60),
+                             minute => $t % 60,
+                            );
+      if ($dt->dow() < 7) {
+        $dt;
+      } else {
+        (); # No Sundays.  We are closed.
+      }
+    } map {
+      if (/(\d+)-(\d+)/) {
+        $1 .. $2
+      } else {
+        $_
+      }
+    } split /,/, ($input{mday}  ||  (localtime)[3]);
+    # Each of these DateTime values is a starting time for the top row
+    # in a set of columns (one column per resource).
+
+    # Now we can fill in the bookings:
+    {
+      my $mindt = $dt[0];
+      my $maxdt = $dt[-1]->clone()->add(days => 1);
+      for my $id (@res) {
+        $res{$id}{bookings} = [ get_timerange_bookings($id, $mindt, $maxdt) ];
+      }
+    }
+
+    $debugtext .= "<p><div><strong>Viewing Schedules for @res:</strong></div>$/<pre>".encode_entities(Dumper(\%res))."</pre></p>
+<p><div><strong>Schedules:</strong></div>$/<pre>".encode_entities(Dumper(\@s))."</pre></p>
+<p>$gcf</p>
+<p>Starting Times:<pre>".encode_entities(Dumper(@dt))."</pre></p>\n" if $debug;
+
+    my %endingtime =
+      (
+       #(map { $_ => [20, 30] } (1..4)), # 8:30pm Monday - Thursday,
+       #5 => [18, 0], # 6pm on Friday,
+       #6 => [17, 0], # 5pm on Saturday,
+       #7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
+       (map { $_ => [20, 20] } (1..4)), # 8:20pm Monday - Thursday,
+       5 => [17, 50], # 5:50pm on Friday,
+       6 => [16, 50], # 4:50pm on Saturday,
+       7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
+      );
+
+    @col;
+    # For each day we're showing, we want columns for each resource.
+    for $dt (@dt) {
+      for $r (@res) {
+        my $end = $endingtime{$dt->wday()};
+        my $schedule = $s{$res{$r}->{schedule}};
+        $$schedule{firsttime} =~ /(\d{2})[:](\d{2})[:]\d+/;
+        my ($beghour, $begmin) = ($1, $2);
+        push @col,
+          +{
+            res => $res{$r},
+            # cdt => DateTime->new( # DateTime for current row.
+            #                      year   => $dt->year(),
+            #                      month  => $dt->month(),
+            #                      day    => $dt->day(),
+            #                      hour   => $dt->hour(),
+            #                      minute => $dt->minute(),
+            #                     ),
+            cdt => $dt->clone(),
+            sdt => DateTime->new( # DateTime for first timeslot at beginning of day.
+                                 year   => $dt->year(),
+                                 month  => $dt->month(),
+                                 day    => $dt->day(),
+                                 hour   => $beghour,
+                                 minute => $begmin,
+                                ),
+            end => DateTime->new( # DateTime for end of day
+                                 year   => $dt->year(),
+                                 month  => $dt->month(),
+                                 day    => $dt->day(),
+                                 hour   => $$end[0],
+                                 minute => $$end[1],
+                                ),
+            # rsp => (($$schedule{intervalmins}) / $gcf),
+          };
+      }
+    }
+
+    $debugtext .= "<p>\%endingtime: ".(encode_entities(Dumper(\%endingtime)))."</p>
+<p><div><strong>Columns:</strong></div><div><pre>".encode_entities(Dumper(\@col))."</pre></div></p>";
+
+    push @thead, (qq[<tr><th rowspan="2" class="label">Time Range</th>]
+                  .(join '',
+                    map {
+                      my $dt = $_;
+                      my $thclass  = ($dt->ymd eq $now->ymd) ? 'todayth' : 'dateth';
+                      qq[<th colspan="].(scalar @res). qq[" class="$thclass"><a href="./?view=$input{view}&amp;year=].
+                          ($dt->year())."&amp;month=".($dt->month)."&amp;mday=".($dt->mday()).
+                          qq[&amp;$persistentvars">]
+                          .($dt->day_name()) . ", " .($dt->ymd())."</a></th>"
+                        } @dt
+                   )."<!-- dt: @dt --></tr>\n");
+    push @thead, ("<tr>".( join '',
+                           map {
+                             "<!-- res: @res -->".join'', map {
+                               qq[<th class="res$res{$_}{id}"><a href="./?view=$res{$_}{id}&amp;year=$input{year}&amp;month=$input{month}&amp;mday=$input{mday}&amp;$persistentvars">$res{$_}{name}</a></th>]} @res
+                           } @dt
+                         )."<!-- dt: @dt --></tr>\n");
+    my $maxnts; # Each iteration of the loop below calculates an $nts
+                # value (number of timeslots); we want the largest one
+                # for the next loop.
+    for $c (@col) {
+      # We must construct the column.  First we place appointments
+      # already booked, then we place the empty timeslots at the
+      # correct intervals, then we calculate how many rows each one
+      # takes up.
+      #use Data::Dumper; warn Dumper(+{ col => $c });
+      my @b = grep {
+        # We don't want followup bookings.  (Those get picked up later
+        # under the booking they follow up.)
+        not $$_{isfollowup}
+      } grep {
+        # Of the bookings (which are already the ones for the entire
+        # timerange we're doing), we only want the bookings that are
+        # for the correct specific date.  (This is relevant if more
+        # than one date is being looked at side-by-side.)
+        my $bdt = DateTime::From::MySQL($$_{fromtime});
+        my $cdt = $$c{cdt};
+        (    ($bdt->year()  == $cdt->year())
+         and ($bdt->month() == $cdt->month())
+         and ($bdt->mday()  == $cdt->mday()))
+      } @{$$c{res}{bookings}};
+
+      for $b (@b) {
+        my $fromtime = DateTime::From::MySQL($$b{fromtime});
+        # But, what timeslots are we taking up, then?
+        my $msm = ((60*$fromtime->hour())+$fromtime->min()); # minutes since midnight.
+        my $msb = $msm - $tablestarttime; # minutes since beginning time of table.
+        my $ts = ($msb / $gcf);
+        #use Data::Dumper; warn Dumper(+{ fromtime => $fromtime->hms(), msm => $msm, msb => $msb, ts => $ts });
+
+        # So, how many timeslots long is this booking?
+        my $until    = DateTime::From::MySQL($$b{until});
+        #my $duration = DateTime->new(
+        #                             year   => $until->year(),
+        #                             month  => $until->month(),
+        #                             day    => $until->day(),
+        #                             hour   => $until->hour(),
+        #                             minute => $until->minute(),
+        #                            )->subtract_datetime($fromtime);
+        my $duration = $until->clone()->subtract_datetime($fromtime);
+        # We do not provide a mechanism for appointments spanning
+        # days, so we can just take hours and minutes here.
+        my $durmins = $duration->minutes + (60*$duration->hours) + (int ($duration->seconds / 60));
+        my $durts = int (0.75 + ($durmins / $gcf)); # duration in number of timeslots.
+        #use Data::Dumper(); warn Dumper(+{ durmins => $durmins, durts => $durts });
+        for (1 .. ($durts-1)) { # timeslot 0 is the one we already marked, for a total of $durts slots.
+          $$c{tscont}[$ts+$_] = 1;
+        }
+
+        # We can't make the td element yet, because we don't know the
+        # rowspan value yet, but we *can* now calculate the *contents*
+        # of the td element:
+        my $x = $b; my $inits = ($$x{staffinitials} ? " --$$x{staffinitials}" : '');
+        $$c{tdcontent}[$ts] = "\n<!-- Actual Booking:  *********************************************************
+           fromtime => $$x{fromtime},    until => $$x{until},
+           duration => ".encode_entities(Dumper(\$duration)).qq[
+           durmins  => $durmins,         durts => $durts,
+           --><a href="./?booking=$$x{id}&amp;$persistentvars">].
+             (
+              include::capitalise(include::dealias(include::normalisebookedfor($$x{bookedfor})))
+             ).
+             (($$x{latestart}) ? (' (' . include::twelvehourtimefromdt(DateTime::From::MySQL($$x{latestart})) . ')') : '') .
+             (($$x{notes})
+              ?' <abbr title="'.encode_entities($$x{notes}.$inits).qq["><img width="24" height="24" alt="[Notes]" src="notes.png"></img></abbr>]
+              :"")
+               ."</a>
+              <!-- Booked by $$x{bookedby} for timeslot from $$x{fromtime} to $$x{until} (done: $$x{doneearly}, followed by $$x{followedby}) -->";
+        my $bookingcount = 1;
+        my $foundfollowedbyempty;
+        while ($$x{followedby} and not $foundfollowedbyempty) {
+          my $p = $x;
+          $x = getrecord('resched_bookings', $$x{followedby});
+          if ($$x{id}) {
+            my $notes = ''; if ($$x{notes}) {
+              $notes = ' <abbr title="'.encode_entities($$x{notes}).qq["><img width="24" height="24" alt="[Notes]" src="notes.png" /></abbr>];
+            }
+            my ($fbytime) = ($$x{fromtime} =~ /(\d+[:]\d+)/);
+            my $fbytimeth = include::twelvehourtime($fbytime);
+            $$c{tdcontent}[$ts] .= qq[<hr class="doneearly"></hr>\n<!-- Followup Booking: ########################################################
+           fromtime => $$x{fromtime},    until => $$x{until},
+           --><a href="./?booking=$$x{id}&amp;$persistentvars">].
+              (
+               include::capitalise(include::dealias(include::normalisebookedfor($$x{bookedfor})))
+              ) ." ($fbytimeth)$notes</a>
+              <!-- Booked by $$x{bookedby} for timeslot from $$x{fromtime} to $$x{until} (done: $$x{doneearly}, followed by $$x{followedby}) -->";
+            $bookingcount += 1; # I have the hr element styled so that this is enough.
+          } else {
+            $x = $p; $foundfollowedbyempty = 1;
+          }
+        }
+        # Question: is there room to insert some blank lines before
+        # the done early link?  That question gets addressed below,
+        # when calculating the rowspan values, but we'll need the
+        # bookingcount:
+        $$c{bookingcount}[$ts] = $bookingcount;
+        $$c{tdcontent}[$ts] .= "<!-- and now the done early link: -->"; my $donetext = "done early?";
+        my $extendlink = '';
+        $extendlink = '<a href="./?'."extend=$$x{id}&amp;$persistentvars".'"><img src="/img/arrow-down-blue-v2.png" class="extendarrow" width="36" height="21" /></a>';
+        if ($$x{doneearly}) {
+          my $doneat = include::twelvehourtimefromdt(DateTime::From::MySQL($$x{doneearly}));
+          $donetext = "(available at $doneat)";
+          $extendlink = '';
+          $$c{tdcontent}[$ts] .= '<hr class="doneearly" />';
+        }
+        ++$uniqueid;
+        my $delink = ($input{useajax} eq 'off')
+          ? qq[<a href="./?doneearly=$$x{id}&amp;$persistentvars" class="avail">$donetext</a>]
+          : qq[<a class="avail" onclick="onemoment('dnid$uniqueid'); sendajaxrequest('ajax=doneearlyform&amp;containerid=dnid$uniqueid&amp;bookingid=$$x{id}&amp;$persistentvars')">$donetext</a>];
+        $$c{tdcontent}[$ts] .= qq[
+          <div id="dnid$uniqueid">
+             $extendlink
+             <div style="text-align: right;" class="doneearly">$delink</div>
+          </div>];
+        # Since these are actual bookings, not mere scheduled
+        # timeslots, we want to extend them downward for their
+        # duration, so that regularly scheduled timeslots cannot break
+        # in in the middle of them.  However, that's done below, after
+        # we place the regularly scheduled thingies, when we calculate
+        # the rowspan values.
+      }
+      # Now, the regularly scheduled empty timeslots (if they're not taken):
+      # How many timeslots are there total (on the table, counting between ones)?
+      my $esm = (60*$$c{end}->hour() + $$c{end}->min()); # Minutes since midnight at close (end of day).
+
+      my $ssm = (60*$$c{sdt}->hour() + $$c{sdt}->min()); # Minutes since midnight for first timeslot.
+
+      my $nts = int ((($esm - $tablestarttime) / $gcf) + 0.5); # If a timeslot is at least half there, show it.
+      $maxnts = $nts if $maxnts < $nts;
+      my $sts = int ((($ssm - $tablestarttime) / $gcf));
+      # $nts is number of (raw) timeslots.
+      # $sts is the first one to match the interval.
+      $$c{sch} = $s{$$c{res}{schedule}};
+      { # Calculate number of regularly scheduled appointment timeslots (tsl) for the column:
+        $$c{tsl} = int ((($esm - $ssm) / $$c{sch}{intervalmins}) + 0.5); # If a timeslot is at least half there, go ahead and prepare rows for it.
+      }
+      my $tsc; for $tsc (0..($$c{tsl}-1)) {
+        my $tsn = $sts + ($tsc * (int ($$c{sch}{intervalmins} / $gcf))); # Timeslot Number
+        my $msm = $ssm + ($tsn * $gcf);
+        my $when = DateTime->new(# This is WRONG for columns that start their first timeslot
+                                 # later than another displayed column, because $ssm is larger
+                                 # for some columns than for others (as it should be), and we
+                                 # don't know at this time the correct amount to subtract; this
+                                 # is FIXED later (where dectime() is called) once we have done
+                                 # some other calculations (so that we do know what to subtract)
+                                 # before the results are output to the user.
+                                 year   => $$c{sdt}->year(),
+                                 month  => $$c{sdt}->month(),
+                                 day    => $$c{sdt}->day(),
+                                 hour   => (int ($msm / 60) % 24),
+                                 minute => $msm % 60,
+                                );
+        my $whentext = $when->date() . " " . $when->time();# . "&amp;tsn=$tsn&amp;gcf=$gcf&amp;ssm=$ssm";
+        my $resid = $$c{res}{id};
+        if (not $$c{tscont}[$tsn]) {
+          my ($availstuff);
+          if (isroom($resid)
+              # or ($$c{sch}{intervalmins} ne $$c{sch}{durationmins}) # This MAY not matter, provided the page will reload anyway when the resource is booked.
+              # or (not $$c{sch}{durationlock}) # This MAY not matter too, provided the user can always do things the old way if a different duration is wanted.
+              or ($input{useajax} eq 'off')) {
+            $availstuff = qq[<!-- *** Regularly Scheduled Interval ***
+             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>];
+          } else {
+            ++$uniqueid;
+            $availstuff = qq[<span id="unid$uniqueid"><!-- *** Regularly Scheduled Interval ***
+             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>
+                <input type="button" value="Quick!" onclick="onemoment('unid$uniqueid'); sendajaxrequest('ajax=newbookingform&amp;containerid=unid$uniqueid&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars');" />
+             </span>];
+          }
+          $$c{tdcontent}[$tsn] ||= $availstuff;
+          push @{$$c{contentnote}}, +{
+                                      tsc => $tsc,
+                                      tsn => $tsn,
+                                      con => $$c{tdcontent}[$tsn],
+                                      msm => $msm,
+                                      whe => $whentext,
+                                     };
+        }
+      }
+      # If the very first timeslot at the top of the day isn't taken, put a blank td in it:
+      #$$c{tdcontent}[0] ||= "<!-- This Space Intentionally Left Blank -->";
+      if (not $$c{tdcontent}[0]) {
+        $$c{ssmoffset} += $gcf; # This still needs to be multiplied by
+                                # the rowspan value, which hasn't been
+                                # calculated yet.
+        $$c{tdcontent}[0] = "<!-- This Space Intentionally Left Blank ($$c{ssmoffset}) -->";
+      }
+      # Also, mark off the final closing time at the end of the day:
+      $$c{tdcontent}[$nts] = "(closing)<!-- nts: $nts -->";
+    }
+    for $c (@col) {
+      # Calculate the rowspan values:
+      my $rsp = 0;
+      for $tsn (reverse 0 .. $maxnts) {
+        if ($$c{tdcontent}[$tsn]) {
+          $$c{tdrowspan}[$tsn] = ++$rsp;
+          # Now, what about inserting some blank lines (if there's room) before the doneearly link?
+          my $bl = $rsp - $$c{bookingcount}[$tsn] - 1;
+          # Subtracting 1 accounts for the line the done early link takes for itself.
+          for (1..$bl) {
+            $$c{tdcontent}[$tsn] =~ s(<!-- and now the done early link: -->)(<div class="doneearlyspacer">&nbsp;</div><!-- and now the done early link: -->);
+          }
+          $rsp = 0;
+        } else {
+          $rsp++;
+        }
+      }
+    }
+    # Great, now create the actual rows...  but how many of them?
+    my $lastendtime = (sort { $a <=> $b } map { $$_{end}->min() + (60*$$_{end}->hour()) } @col)[-1];
+    my $numofrows = ($lastendtime - $tablestarttime) / $gcf;
+    for $row (0 .. $numofrows) {
+      my $rowtime = $tablestarttime + ($gcf * $row);
+      my ($label, $beforeopen, $labelclass); {
+        my $ampm = "<!-- am -->";
+        my $hour = int ($rowtime / 60);
+        if ($hour < 9) {
+          $beforeopen = 1;
+        }
+        if ($hour > 12) {
+          $ampm = "<!-- pm -->"; $hour -= 12;
+        }
+        $min  = sprintf "%02d", ($rowtime % 60);
+        $label = "<!-- $rowtime -->$hour:$min$ampm";
+        if ($beforeopen) { $label = '<!-- before open -->'; $labelclass = 'beforeopen' }
+      }
+      $labelclass ||= 'label';
+      push @tbody, qq[<tr><!-- $row --><td class="$labelclass">$label</td>] .
+        (join $/, map {
+          $$_{tdcontent}[$row]
+            ? sub {
+              my ($c, $r) = @_;
+              my $class = ($$c{tdcontent}[$r] =~ /\(closed\)/) ? qq[ class="closed"] : qq[ class="res$$c{res}{id}"];
+              if ($$c{ssmoffset}) {
+                $$c{tdcontent}[$r] =~ s!(\d+[:]\d+[:]\d+)!dectime($1,$gcf,$$c{tdrowspan}[0])!eg; }
+              return qq[<td rowspan="$$_{tdrowspan}[$row]"$class>$$_{tdcontent}[$row]</td>\n              ];
+            }->($_, $row)
+              : "<!-- no tdcontent -->"
+        } @col)
+        . "</tr>";
+    }
+    my $pagetitle = 'View Schedule'; # Sane default.
+    if ($input{view} =~ /^(\d+)$/) {
+      my %r = %{getrecord('resched_resources', $1)};
+      $pagetitle = $r{name};
+      # This is a slightly better title, but maybe we can do better.
+    }
+    my %specialview = map {
+      my ($name, @res) = @$_;
+      my $view = join ',', sort { $a <=> $b } @res;
+      ($view => $name)
+    } include::categories();
+    my $thisview = join ",", sort { $a <=> $b } split /,\s*/, $input{view};
+    if ($input{magicdate} eq 'today') {
+      $pagetitle = "Today's ";
+      if ($specialview{$thisview}) {
+        $pagetitle .= $specialview{$thisview};
+      } else {
+        $pagetitle .= "Schedule";
+      }
+    } elsif ($specialview{$thisview}) {
+      $pagetitle = $specialview{$thisview} . ' Schedule';
+    }
+    if ($input{magicdate} eq 'monthataglance') {
+      $pagetitle .= ': Month at a Glance';
+    }
+    my $updateargs   = qq[ajax=updates-p&since=] .
+      (DateTime::Format::ForDB($now)) . qq[&resource=$input{view}];
+    #warn "Update args: $updateargs\n";
+    my $updatesuri = updates_uri([split /,\s*/, $input{view}], $now);
+    my $updatescript = qq[<script language="javascript">
+       /* Issue a check for updates request periodically. */
+       function checkforupdates() {
+         sendajaxrequest('$updateargs');
+       }
+       function retrieveupdates() {
+         window.location.href = '$updatesuri';
+         window.location.reload();
+       }
+       window.setInterval(checkforupdates,  120000 );
+    </script>];
+    my $nownote = qq[<div class="currenttime">The following is current as of ] . (include::datewithtwelvehourtime(DateTime->now( time_zone => $include::localtimezone ))) . qq[</div>];
+    print include::standardoutput($pagetitle,
+       qq[
+       <!-- table start time: $tablestarttime -->
+       <!-- table end time:   $lastendtime -->
+       <!-- number of rows:   $numofrows -->
+       $messagetouser
+       $nownote
+       <table border="1" class="scheduletable">
+       <thead>].(join"\n",@thead).qq[</thead>
+       <tbody>].(join"\n",@tbody).qq[</tbody>
+       </table><!-- /table aleph -->],
+                                  $ab, $input{usestyle},
+                                  (($input{extend} ? $redirectheader : '')
+                                   . $updatescript),
+                                 );
+    # ****************************************************************************************************************
+}# end of doview()
 
 sub gatherstats {
   my (@category);

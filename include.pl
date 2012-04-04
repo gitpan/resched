@@ -89,13 +89,20 @@ sub normalisebookedfor {
 
 sub capitalise {
   my ($name) = @_; # This should already be dealiased, if that is desired, and normalised.
-  my @part = split /\s+/, $name;
-  return join ' ', map {
-    my $n = ucfirst lc $_;
-    $n =~ s/^(Ma?c|Van|O')(\w)/$1 . ucfirst $2/e;
-    $n =~ s/\b(ii|iii|iv|vi|vii|viii)\b/uc $1/ei;
-    $n
-  } @part;
+  my @p = split /\s+/, $name;
+  my @part;
+  while (@p) {
+    my $n = shift @p;
+    $n = ucfirst lc $n;
+    if ((scalar @part) > (scalar @p)) {
+      # Given names ordinarily don't follow these patterns, but
+      # surnames and suffices do:
+      $n =~ s/^(Ma?c|Van|(?:[A-Z])(?:[']|[&]#39;))(\w)/$1 . ucfirst $2/e;
+      $n =~ s/\b(ii|iii|iv|vi|vii|viii)\b/uc $1/ei;
+    }
+    push @part, $n;
+  }
+  return join " ", @part;
 }
 
 sub standardoutput {
@@ -113,7 +120,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.8 vintage 2010 June 17. -->
+   <!-- resched version 0.7.9 vintage 2011 April 4. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />

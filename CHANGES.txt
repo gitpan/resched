@@ -1,5 +1,25 @@
 See also TODO.txt
-
+Version 0.7.9:
+  * Fixed a bug in the recurring-booking code, which was causing the
+    "dates listed below" option to only allow two dates and leak HTML.
+  * capitalize() now handles given names differently from surnames,
+    so that names like "Vanessa VanMeter" can be handled correctly.
+  * Fixed a bug that was preventing capitalize() from correctly
+    handling apostrophized surnames (e.g., O'Reilly) and generalized
+    it to handle non-Irish ones (e.g., D'Alsenin).  Note that only
+    the standard ASCII apostrophe is supported at this time; if your
+    apostrophized surnames have exotic unicode apostrophe characters
+    (or, heaven help us, Microsoft SmartQuotesTM), it still won't
+    work quite as you might want.  If someone wanted to fix this,
+    the place to look would be on line 100 in include.pl (as of
+    version 0.7.9; one supposes the line number will change in
+    future releases).
+  * Cleaned up more "\"escaped\" quotes", this time in the view
+    code and also in datetime-extensions.pl
+  * Removed include.pl.old, which hasn't been used for a while.
+  * Factored out the $input{view} code to sub doview().
+    Much more refactoring of this type is needed.
+  * Released on 2012 April 4th.
 Version 0.7.8:
   * Introduced the "favicon", resched.ico.  Individual sites can
     of course customize or replace this icon.

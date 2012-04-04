@@ -114,33 +114,33 @@ sub DateTime::Form::Fields {
   # don't skip, but "disable" editing.  (This is a UI feature only; it
   # is not secure.)
   #confess " DateTime::Form::Fields $dbgmsg [@_]" if $dbgmsg;
-  my $result = "<div class=\"datetimeformfields\">
-     <table><tbody>\n";
+  my $result = qq[<div class="datetimeformfields">
+     <table><tbody>\n];
   my ($disabledate, $disabletime);
-  if ($skiptime eq 'disable') { $disabletime = " disabled=\"disabled\""; undef $skiptime; }
-  if ($skipdate eq 'disable') { $disabledate = " disabled=\"disabled\""; undef $skipdate; }
+  if ($skiptime eq 'disable') { $disabletime = ' disabled="disabled"'; undef $skiptime; }
+  if ($skipdate eq 'disable') { $disabledate = ' disabled="disabled"'; undef $skipdate; }
   my $dtyear = $dt->year; # For debugging purposes, I want this clearly on its own line, for now.
-  $result .= "<!-- DateTime::Form::Fields $dbgmsg -->
-         <tr><td>Year:</td><td><input type=\"text\" size=\"6\" name=\"${prefix}_datetime_year\" value=\"".
-           ($dtyear)."\"$disabledate></input></td></tr>
-         <tr><td>Month:</td><td><select name=\"${prefix}_datetime_month\"$disabledate>$/                ".(join $/, map {
-           my $selected = ($_ == $dt->month) ? " selected=\"selected\"" : "";
-           "                <option value=\"$_\" $selected>$monthname{$_}</option>"
-         } 1..12)."</select></td></tr>
-         <tr><td>Day:</td><td><input type=\"text\" size=\"3\" name=\"${prefix}_datetime_day\" value=\"".
-           ($dt->mday)."\"$disabledate></input></td></tr>" unless $skipdate;
+  $result .= qq[<!-- DateTime::Form::Fields $dbgmsg -->
+         <tr><td>Year:</td><td><input type="text" size="6" name="${prefix}_datetime_year" value="].
+           ($dtyear).qq["$disabledate></input></td></tr>
+         <tr><td>Month:</td><td><select name="${prefix}_datetime_month"$disabledate>
+                ].(join $/, map {
+           my $selected = ($_ == $dt->month) ? ' selected="selected"' : "";
+           qq[                <option value="$_" $selected>$monthname{$_}</option>]
+         } 1..12).qq[</select></td></tr>
+         <tr><td>Day:</td><td><input type="text" size="3" name="${prefix}_datetime_day" value="].
+           ($dt->mday).qq["$disabledate></input></td></tr>] unless $skipdate;
   $result .= qq[
-         <tr><td>Time:</td><td><span class="nobr"><select name="${prefix}_datetime_hour"$disabletime>].(join $/, map {
+         <tr><td>Time:</td><td><span class="nobr"><select name="${prefix}_datetime_hour"$disabletime>]
+      .(join $/, map {
            my $selected = ($_ == $dt->hour) ? qq[ selected="selected"] : "";
            qq[<option value="$_" $selected>].(($_>12)?(($_-12) . " pm"):(($_<12)?"$_ am":$_))."</option>"
-         } $firsthour .. $lasthour)."</select> : <select name=\"${prefix}_datetime_minute\"$disabletime>
-           ".(join $/, map {
-           my $selected = ($_ == $dt->minute) ? " selected=\"selected\"" : "";
-           "<option value=\"$_\" $selected>$_</option>"
-         } map { sprintf "%02d", $_ } 0 .. 59)."</select></span></td></tr>
-" unless $skiptime;
-  $result .= "
-     </tbody></table></div>";
+         } $firsthour .. $lasthour).qq[</select> : <select name="${prefix}_datetime_minute"$disabletime>
+           ].(join $/, map {
+           my $selected = ($_ == $dt->minute) ? ' selected="selected"' : "";
+           qq[<option value="$_" $selected>$_</option>]
+         } map { sprintf "%02d", $_ } 0 .. 59)."</select></span></td></tr>\n" unless $skiptime;
+  $result .= "\n     </tbody></table></div>";
   return $result;
 }
 
