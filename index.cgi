@@ -263,7 +263,7 @@ if ($auth::user) {
                                  include::twelvehourtime($when->hour() . ':' . sprintf "%02d", $when->minute())
                                 )." to ".(include::twelvehourtime($until->hour() . ":" . (sprintf "%02d", $until->minute())))." on ".($when->date());
     } else {
-      my $hourselect = '<select name="untilhour">'.(houroptions($until->hour())).'</select>';
+      my $hourselect = '<select name="untilhour">'.(include::houroptions($until->hour())).'</select>';
       $untilp = "Booking from ".(
                                  include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
                                 ).qq[ to
@@ -2203,16 +2203,6 @@ sub nonstandard_week_of_month {
   return $answer;
 }
 
-sub houroptions {
-  my ($selectedhour) = @_;
-  return join "\n            ",
-    map {
-      my $val = $_;
-      my $hour = ($val <= 12) ? ("$val"."am") : (($val-12)."pm");
-      my $selected = ($_ == $selectedhour) ? ' selected="selected"' : '';
-      "<option value=\"$val\"$selected>$hour</option>"
-    } 8..20;
-}
 
 sub attemptbooking {
   my ($resource, $schedule, $when) = @_; # Two hashrefs and a DateTime object, respectively.
@@ -2567,19 +2557,7 @@ sub usersidebar {
                         id   => (join ',', map { $$_{id} } @room)
                        })
           . qq[\n        </ul></div>];
-  return "<div class=\"sidebar\">
-   <div>$prevnext</div>
-   <div><a href=\"./?usestyle=$input{usestyle}\"><strong>Choose Resource(s) &amp; Date(s)</strong></a></div>
-   $other
-   $today
-   $aftertoday
-   $roomsoneweek
-   $overview
-   ".qq[
-   <div><strong>Upcoming Events:</strong><ul>
-           <li><a href="./?action=daysclosed&amp;$persistentvars">mark closed date</a></li>
-        </ul></div>
-   <div><strong><span onclick="toggledisplay('searchlist','searchmark');" id="searchmark" class="expmark">+</span>
+  my $searchsection = qq[<div><strong><span onclick="toggledisplay('searchlist','searchmark');" id="searchmark" class="expmark">+</span>
           <span onclick="toggledisplay('searchlist','searchmark','expand');">Search:</span></strong>
           <div id="searchlist" style="display: none;">
             <ul><li><form action="index.cgi" method="post">
@@ -2595,8 +2573,8 @@ sub usersidebar {
                 <li><a href="./?frequserform=1&amp;$persistentvars">frequent user lookup</a></li>
             </ul>
           </div>
-        </div>
-   <div><strong><span onclick="toggledisplay('aliaslist','aliasmark');" id="aliasmark" class="expmark">+</span>
+        </div>];
+  my $aliassection = qq[<div><strong><span onclick="toggledisplay('aliaslist','aliasmark');" id="aliasmark" class="expmark">+</span>
         <span onclick="toggledisplay('aliaslist','aliasmark','expand');">Aliases:</span></strong>
         <div id="aliaslist" style="display: none;"><ul>
             <li><a href="index.cgi?action=newaliasfrm">New Alias</a></li>
@@ -2605,26 +2583,32 @@ sub usersidebar {
                   <input type="hidden" name="useajax"   value="$input{useajax}" />
                   <span class="nobr"><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></span>
                 </form></li>
-        </ul></div></div>
-   <div><strong><span onclick="toggledisplay('statslist','statsmark');" id="statsmark" class="expmark">+</span>
+        </ul></div></div>];
+  my $statsection = qq[<div><strong><span onclick="toggledisplay('statslist','statsmark');" id="statsmark" class="expmark">+</span>
         <span onclick="toggledisplay('statslist','statsmark','expand');">Statistics:</span></strong>
         <div id="statslist" style="display: none;"><ul>
         <li><a href="./?stats=yesterday&amp;$persistentvars">yesterday</a></li>
         <li><a href="./?stats=lastweek&amp;$persistentvars">last week</a></li>
         <li><a href="./?stats=lastmonth&amp;$persistentvars">last month</a></li>
         <li><a href="./?stats=lastyear&amp;$persistentvars">last year</a></li>
-        </ul></div></div>
-   <div><strong><span onclick="toggledisplay('visualstylelist','visualstylemark');" id="visualstylemark" class="expmark">+</span>
-        <span onclick="toggledisplay('visualstylelist','visualstylemark','expand');">Visual Style:</span></strong>
-        <div id="visualstylelist" style="display: none;"><ul>
-        <!-- Schemes with general appeal: -->
-           <li><a href="./?$currentview&amp;usestyle=lightondark&amp;useajax=$input{useajax}">Light on Dark</a></li>
-           <li><a href="./?$currentview&amp;usestyle=darkonlight&amp;useajax=$input{useajax}">Dark on Light</a></li>
-           <li><a href="./?$currentview&amp;usestyle=lowcontrast&amp;useajax=$input{useajax}">Low Contrast</a></li>
-           <li><a href="./?$currentview&amp;usestyle=browserdefs&amp;useajax=$input{useajax}">Browser Colors</a></li>
-           <li><a href="./?$currentview&amp;usestyle=funwithfont&amp;useajax=$input{useajax}">Fun with Fonts</a></li>
-           <li><a href="./?$currentview&amp;usestyle=blackonwite&amp;useajax=$input{useajax}">Black on White</a></li>
-        </ul></div></div>
+        </ul></div></div>];
+  my $stylesection = include::sidebarstylesection($currentview);
+  return qq[<div class="sidebar">
+   <div>$prevnext</div>
+   <div><a href="./?usestyle=$input{usestyle}"><strong>Choose Resource(s) &amp; Date(s)</strong></a></div>
+   $other
+   $today
+   <div><div><strong><a href="program-signup.cgi">Program Signup</a></strong></div> </div>
+   $aftertoday
+   $roomsoneweek
+   $overview
+   <div><strong>Upcoming Events:</strong><ul>
+           <li><a href="./?action=daysclosed&amp;$persistentvars">mark closed date</a></li>
+        </ul></div>
+   $searchsection
+   $aliassection
+   $statsection
+   $stylesection
    <div><strong><span onclick="toggledisplay('ajaxtechlist','ajaxtechmark');" id="ajaxtechmark" class="expmark">+</span>
         <span onclick="toggledisplay('ajaxtechlist','ajaxtechmark','expand');">AJAX technology:</span></strong>
         <div id="ajaxtechlist" style="display: none;"><ul>

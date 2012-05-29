@@ -113,3 +113,42 @@ $db->prepare(
     )"
     )->execute();
 
+$db->prepare(
+    "CREATE TABLE IF NOT EXISTS
+    resched_program_category (
+          id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          category mediumtext,
+          flags    tinytext
+    )"
+    )->execute();
+my @category = getrecord('resched_program_category');
+if (not scalar @category) {
+    addrecord('resched_program_category', +{ category => 'Test/Debug',           flags => '#' });
+    addrecord('resched_program_category', +{ category => 'Our Programs',         flags => 'LD' });
+    addrecord('resched_program_category', +{ category => 'Third-Party Programs', flags => 'T' });
+}
+
+$db->prepare(
+    "CREATE TABLE IF NOT EXISTS
+     resched_program (
+          id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          category  integer,
+          title     mediumtext,
+          agegroup  tinytext,
+          starttime datetime,
+          endtime   datetime,
+          flags     tinytext
+     )"
+     )->execute();
+
+$db->prepare(
+    "CREATE TABLE IF NOT EXISTS
+     resched_program_signup (
+          id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          program_id integer,
+          attender   mediumtext,
+          phone      tinytext,
+          flags      tinytext,
+          comments   longtext
+     )"
+     )->execute();

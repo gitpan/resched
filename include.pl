@@ -5,6 +5,7 @@ use strict;
 require "./db.pl";
 package include;
 require "./sitecode.pl"; # Site-specific code should be moved into there.
+use Carp;
 
 my $ajaxscript = qq[<script language="javascript" src="ajax.js" type="text/javascript">\n</script>\n];
 
@@ -14,11 +15,14 @@ our %sidebarpos = ( right => 1 ) unless defined %sidebarpos; # Used by contentwi
 
 sub datewithtwelvehourtime {
   my ($dt) = @_;
-  return $dt->ymd() . " at " . twelvehourtime($dt->hour() . ":" . sprintf "%02d", $dt->minute());
+  confess "datewithtwelvehourtime() needs a DateTime object" if not ref $dt;
+  return $dt->year() . '-' . $dt->month_abbr() . '-' . $dt->mday()
+    . " at " . twelvehourtime($dt->hour() . ":" . sprintf "%02d", $dt->minute());
 }
 
 sub twelvehourtimefromdt {
   my ($dt) = @_;
+  confess "twelvehourtimefromdt() needs a DateTime object" if not ref $dt;
   my $h = $dt->hour;
   my $m = sprintf "%02d", $dt->minute;
   $m = '' if ($m == 0 and $h ne 12);
@@ -28,6 +32,7 @@ sub twelvehourtimefromdt {
   } elsif ($h < 12) {
     $m .= "am";
   }
+  return $h . $m if $m =~ /^[ap]m$/;
   return $h . ":" . $m;
 }
 
@@ -120,7 +125,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.7.9 vintage 2011 April 4. -->
+   <!-- resched version 0.8.2 vintage 2012 May 29. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />
@@ -135,31 +140,67 @@ $include::footer
 </html>];
 }
 
+sub sidebarstylesection {
+  my ($preserve, $program) = @_;
+  if ($preserve and not $preserve =~ /&amp;$/) {
+    $preserve .= '&amp;';
+  }
+  $program ||= './';
+  my $keepajax = qq[useajax=$main::input{useajax}];
+  return qq[<div><strong><span onclick="toggledisplay('visualstylelist','visualstylemark');" id="visualstylemark" class="expmark">+</span>
+        <span onclick="toggledisplay('visualstylelist','visualstylemark','expand');">Visual Style:</span></strong>
+        <div id="visualstylelist" style="display: none;"><ul>
+        <!-- Schemes with general appeal: -->
+           <li><a href="${program}?${preserve}usestyle=lightondark&amp;$keepajax">Light on Dark</a></li>
+           <li><a href="${program}?${preserve}usestyle=darkonlight&amp;$keepajax">Dark on Light</a></li>
+           <li><a href="${program}?${preserve}usestyle=lowcontrast&amp;$keepajax">Low Contrast</a></li>
+           <li><a href="${program}?${preserve}usestyle=browserdefs&amp;$keepajax">Browser Colors</a></li>
+           <li><a href="${program}?${preserve}usestyle=funwithfont&amp;$keepajax">Fun with Fonts</a></li>
+           <li><a href="${program}?${preserve}usestyle=blackonwite&amp;$keepajax">Black on White</a></li>
+        </ul></div></div>];
+}
+
 sub contentwithsidebar {
   # It is up to the calling code to ensure $sidebar will display
   # properly in the position in question.  (This is especially an
   # issue for top or bottom 'sidebars'.
   my ($content, $sidebar) = @_;
   my $colspan = 1 + ($sidebarpos{left}?1:0) + ($sidebarpos{right}?1:0);
-  return "<table border=\"0\" class=\"contentwithsidebar\" width=\"100%\">"
-    . ($sidebarpos{top}?   "<tr class=\"sidebar\"><td class=\"sidebar\" colspan=\"$colspan\">$sidebar</td></tr>":"")
-    . "<tr>" . ($sidebarpos{left} ?"<td class=\"sidebar\">$sidebar</td>":"")
-             . "<td class=\"content\">$content</td>"
-             . ($sidebarpos{right}?"<td class=\"sidebar\">$sidebar</td>":"")
+  return qq[<table border="0" class="contentwithsidebar" width="100%">]
+    . ($sidebarpos{top} ?  qq[<tr class="sidebar"><td class="sidebar" colspan="$colspan">$sidebar</td></tr>]:"")
+    . "<tr>" . ($sidebarpos{left} ? qq[<td class="sidebar">$sidebar</td>]:"")
+             . qq[<td class="content">$content</td>]
+             . ($sidebarpos{right} ? qq[<td class="sidebar">$sidebar</td>]:"")
              ."</tr>"
-    . ($sidebarpos{bottom}?"<tr class=\"sidebar\"><td class=\"sidebar\" colspan=\"$colspan\">$sidebar</td></tr>":"")
+    . ($sidebarpos{bottom} ? qq[<tr class="sidebar"><td class="sidebar" colspan="$colspan">$sidebar</td></tr>]:"")
     . "</table>";
 }
 
+
+
 sub optionlist {
-  my ($listname, $hashref, $default) = @_;
+  my ($listname, $hashref, $default, $id) = @_;
   my %option = %{$hashref};
-  my $list = "<select name=\"$listname\">";
-  for (sort { $a <=> $b } keys %option) {
-    $list .= "<option value=\"$_\"".(($_ eq $default)?" selected=\"selected\"":"").">$option{$_}</option>";
+  $id ||= $listname;
+  #use Data::Dumper; warn Dumper(@_);
+  my $list = qq[<select name="$listname" id="$id">];
+  for my $opt (sort { $a <=> $b } keys %option) {
+    $list .= qq[<option value="$opt"].(($opt eq $default)?' selected="selected"':'').qq[>$option{$opt}</option>];
   }
   $list .= "</select>";
+  #warn $list;
   return $list;
+}
+
+sub houroptions {
+  my ($selectedhour) = @_;
+  return join "\n            ",
+    map {
+      my $val = $_;
+      my $hour = ($val <= 12) ? ("$val"."am") : (($val-12)."pm");
+      my $selected = ($_ == $selectedhour) ? ' selected="selected"' : '';
+      "<option value=\"$val\"$selected>$hour</option>"
+    } 8..20;
 }
 
 our $doctype = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
@@ -279,8 +320,16 @@ sub sgorpl {
 }
 sub isare {
   my ($num) = @_;
-  return 'is' if ($num == 1);
-  return 'are';
+  return inflectverbfornumber($num, 'is', 'are');
+}
+sub inflectverbfornumber {
+  my ($num, $sg, $pl) = @_;
+  if (not defined $pl) {
+    # Handles weak verbs only.
+    if ($sg =~ /e$/) { $pl = $sg . 'd'; } else { $pl = $sg . 'ed'; }
+  }
+  return $sg if ($num == 1);
+  return $pl;
 }
 
 sub parsemonth {

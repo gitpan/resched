@@ -31,6 +31,7 @@ sub DateTime::Format::ForDB {
 
 sub DateTime::Format::ts {
   my ($dt) = @_;
+  ref $dt or confess "DateTime::Format::ts called without a DateTime object.";
   return sprintf "%04d%02d%02d%02d%02d%02d", $dt->year, $dt->month, $dt->mday, $dt->hour, $dt->minute, $dt->second; 
 }
 
@@ -91,7 +92,7 @@ sub DateTime::NormaliseInput {
   return \%input;
 }
 
-my %monthname =
+our %monthname =
   (
    1 => "January",
    2 => "February",

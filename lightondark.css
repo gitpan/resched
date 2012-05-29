@@ -245,6 +245,13 @@ div.calmdaynum a {
   font-family:         "Bitstream Vera Sans Mono", "Andale Mono", "Lucida Console", monospace; 
 }
 
+.explan {
+  font-family:         "Bitstream Vera Serif", "Georga", serif;
+  font-style:          italic;
+  font-weight:         normal;
+  font-size:           0.9em;
+}
+
 .label {
   background-color:    #667F7F;
   color:               yellow;
@@ -342,4 +349,23 @@ td.content > form.res13
 
 tr.cfgvar > td {
   border-bottom:        1px dotted #294D4A;
+}
+
+
+div.wholeprogramactions {
+  margin:               0.5em;
+  padding:              1em;
+  background-color:     #667F7F;
+  color:                white;
+  border:               2pt outset #667F7F;
+}
+
+table.dbrecord th,
+table.dbrecord td {
+  border-bottom:        1pt solid #294D4A;
+}
+
+tr.signup:nth-child(2n) td {
+  background-color:     #3B5959;
+  color:                #CCCCCC;
 }

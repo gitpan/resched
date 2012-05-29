@@ -6,7 +6,7 @@ These are the steps I follow to do a public release:
  3. Make sure the version number and date (in include.pl) are updated.
  4. Copy everything to resched-public/resched/
  5. cd to that directory
- 7. In ajax.js, fix the baseuri variable
+ 7. In ajax.js, fix the basedir variable
  8. rm dbconfig.pl sitecode.pl *galion* *~
  9. cp sitecode.pl.sample sitecode.pl
 19. cd ..

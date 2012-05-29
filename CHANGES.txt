@@ -1,4 +1,42 @@
 See also TODO.txt
+Version 0.8.2:
+  * List of programs (for program signup) is now sorted.
+  * When you click "List of programs", you get up to a hundred;
+    the sidebar is still limited to max_sidebar_programs.
+  * Added config variables allowing programs in the sidebar
+    to list date and/or time.
+  * Fixed oversight in twelvehourtimefromdt() that caused a colon
+    to be used when it shouldn't be ("7:pm" instead of "7pm")
+  * Released 2012 May 29
+Version 0.8.1:
+  * You can now go back and edit a signup list entry.
+  * You can also go back and edit the details for a program.
+  * If people who have signed up for a program cancel, you can
+    now mark them canceled.  Canceled signups do not show on the
+    signup sheet by default nor are included in the count.
+  * Introduced generalized infrastructure for handling flags
+    on the various program-signup-related records.
+  * Certain program category flags are inherited by programs,
+    and certain program flags are inherited by signups.
+  * Fixed a couple of oversights wherein the new program signup
+    facility did not always preserve the user's choice of visual style.
+  * Minor stylesheet improvements, to the three main stylesheets,
+    e.g. to provide clear visual separation of program-signup lines.
+  * Deployed in Galion, 2012 May 24.
+Version 0.8.0:
+  * Introduced the program signup facility.  This is very basic,
+    but I'm planning some improvements to it soon.
+  * Cleaned up more "\"escaped\" quotes", this time in the sidebar.
+  * Introduced some new AJAX functionality.  Not all of it ended
+    up being used currently, as I found entirely client-side ways
+    of doing something that was going to involve the server.
+  * Separated out the AJAX support code from index.cgi to ajax.pl
+    and added support for the new functionality.
+  * Made the AJAX support code more general and more maintainable.
+  * Made some changes to ajax.js to get fewer warnings from JSLint.
+    More of this is needed (although, some of its warnings seem
+    entirely specious to me).
+  * Released 2012 May 22.
 Version 0.7.9:
   * Fixed a bug in the recurring-booking code, which was causing the
     "dates listed below" option to only allow two dates and leak HTML.

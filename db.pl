@@ -54,6 +54,7 @@ sub getsince {
 # GETNEW:  @records =   getsince(tablename, timestampfield, datetimeobject);
   my ($table, $dtfield, $dt, $q) = @_;
   die "Too many arguments: getrecord(".(join', ',@_).")" if $q;
+  ref $dt or confess "getsince() called without a DateTime object.";
   my $when = DateTime::Format::ts($dt);
   my $db = dbconn();
   $q = $db->prepare("SELECT * FROM $table WHERE $dtfield >= $when");  $q->execute();

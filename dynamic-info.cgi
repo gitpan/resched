@@ -15,6 +15,7 @@ require "./forminput.pl";
 require "./include.pl";
 require "./auth.pl";
 require "./db.pl";
+require "./ajax.pl";
 require "./datetime-extensions.pl";
 
 our %input = %{getforminput()};
@@ -237,41 +238,3 @@ sub dt_difference_in_minutes {
   return $minutes;
 }
 
-sub sendfailure {
-  my %arg = @_;
-  sendalert(qq[Error: $arg{error}\n\nLikely cause:\n$arg{likelycause}\n\nSuggestion:\n$arg{suggestion}]);
-}
-
-sub sendalert {
-  sendresponse(qq[<alert>@_</alert>]);
-}
-
-sub sendalertandreplace {
-  my ($id, $alert, $newstuff) = @_;
-  sendresponse(qq[<alert>$alert</alert>
-  <replace>
-     <replace_within>$id</replace_within>
-     <replacement xmlns="http://www.w3.org/1999/xhtml">$newstuff</replacement>
-  </replace>
-]);
-}
-
-sub sendreplace {
-  my ($id, $newstuff, $focus) = @_;
-  my $focelt = $focus ? qq[<focus>$focus</focus>] : '';
-  sendresponse(qq[<replace>
-  <replace_within>$id</replace_within>
-  <replacement xmlns="http://www.w3.org/1999/xhtml">$newstuff</replacement>
-</replace>
-$focelt]);
-}
-
-sub sendresponse {
-  my ($stuff) = @_;
-  print qq[Content-type: application/xml\n\n
-<dynamic_info>
-$stuff
-</dynamic_info>
-];
-  exit 0;
-}

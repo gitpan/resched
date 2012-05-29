@@ -38,6 +38,21 @@ my %cfgvar =
                             description => 'Wellformed XHTML snippet to insert in the sidebar between the Today section and the Rooms (1 week) section.  Must be allowable inside a block-level element.',
                             multiline   => 1, sortkey => 220,
                           },
+   max_sidebar_programs => +{
+                             default     => 12,
+                             description => 'Maximum number of upcoming programs to list in the program signup sidebar.',
+                             sortkey     => 250,
+                            },
+   sidebar_programs_showdate => +{
+                                  default     => 0,
+                                  description => 'If true, program listings in the sidebar show (abbreviated) date.',
+                                  sortkey     => 255,
+                                 },
+   sidebar_programs_showtime => +{
+                                   default     => 0,
+                                   description => 'If true, program listings in the sidebar show time of day.',
+                                   sortkey     => 256,
+                                  },
    nonusers => +{
                  default => 'closed,maintenance,out of order',
                  description => 'Comma-separated list of special names that resources can be booked for, which should not count toward usage statistics.',

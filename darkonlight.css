@@ -354,3 +354,19 @@ td.content > form.res13
 tr.cfgvar > td {
   border-bottom:        1px dotted black;
 }
+
+div.wholeprogramactions {
+  margin:               0.5em;
+  padding:              1em;
+  border:               2pt solid #FFFFFF;
+  background-color:     #BBBBBB;
+}
+
+table.dbrecord th,
+table.dbrecord td {
+  border-bottom:        2pt solid #666666;
+}
+
+tr.signup:nth-child(2n - 1) td {
+  background-color:     #DDDDDD;
+}

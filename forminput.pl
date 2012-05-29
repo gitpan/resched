@@ -2,6 +2,31 @@
 # -*- cperl -*-
 
 sub taint {use Taint (); for(@_){Taint::taint($_) if defined $_} return @_;}
+
+sub assembledatetime {
+  my ($basename, $inputhash, $timezone, $cleanup) = @_;
+  if ($timezone =~ m/^field:\s*(\w+)$/i) {
+    my $tzfield = $1;
+    $timezone = $$inputhash{$timezone};
+  }
+  $timezone ||= 'America/New_York';
+  my $dt = DateTime->new(
+                         time_zone => $timezone,
+                         year      => ($$inputhash{$basename . 'year'}   || 1974),
+                         month     => ($$inputhash{$basename . 'month'}  || 12),
+                         day       => ($$inputhash{$basename . 'day'}    || 29),
+                         hour      => ($$inputhash{$basename . 'hour'}   || 0),
+                         minute    => ($$inputhash{$basename . 'minute'} || 0),
+                         second    => ($$inputhash{$basename . 'second'} || 0),
+                        );
+  if ($cleanup) {
+    delete $$inputhash{$basename . $_} for qw(year month day hour minute second);
+    # Note that the timezone field is NOT deleted, as it might be used
+    # for multiple date/time assemblages.
+  }
+  return $dt;
+}
+
 sub getforminput {
   my ($num_bytes, $bytesread, $formdata, $name, $value, $boundary, $part, $parts, $partdebug, $partname);
   my (%head, %val, $headers, $h, %disposition, $content_disposition, $t, %partdata, %content_type);
