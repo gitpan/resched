@@ -352,7 +352,8 @@ tr.cfgvar > td {
 }
 
 
-div.wholeprogramactions {
+div.wholeprogramactions,
+div.listactions {
   margin:               0.5em;
   padding:              1em;
   background-color:     #667F7F;

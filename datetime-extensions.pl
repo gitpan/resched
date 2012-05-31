@@ -29,6 +29,14 @@ sub DateTime::Format::ForDB {
   carp "Pestilence and Discomfort: $dt";
 }
 
+sub DateTime::Format::ForURL {
+  my ($dt) = @_;
+  ref $dt or confess "DateTime::Format::ForURL called without a DateTime object.";
+  my $string = DateTime::Format::ForDB($dt);
+  $string =~ s/\s/_/g;
+  return $string;
+}
+
 sub DateTime::Format::ts {
   my ($dt) = @_;
   ref $dt or confess "DateTime::Format::ts called without a DateTime object.";
@@ -38,7 +46,7 @@ sub DateTime::Format::ts {
 sub DateTime::From::MySQL {
   my ($dtstring, $tzone, $dbgmsg) = @_;
   $tzone ||= $include::localtimezone || 'America/New_York';
-  if ($dtstring =~ /(\d{4})-(\d{2})-(\d{2})(?:\s+|T)(\d{2})[:](\d{2})[:](\d{2})/) {
+  if ($dtstring =~ /(\d{4})-(\d{2})-(\d{2})(?:[_]+|\s+|T)(\d{2})[:](\d{2})[:](\d{2})/) {
     return DateTime->new(
                          year   => $1,
                          month  => $2,
@@ -52,10 +60,6 @@ sub DateTime::From::MySQL {
     carp "from_mysql $dbgmsg:  Cannot parse datetime string: '$dtstring'";
     return undef;
   }
-  # It may be possible to simplify this using Time::Piece::MySQL,
-  # which has a from_mysql_datetime method that returns the time
-  # in the same format as time(), which can probably be fed to
-  # DateTime::from_epoch
 }
 
 sub DateTime::NormaliseInput {

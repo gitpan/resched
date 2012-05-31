@@ -1,4 +1,30 @@
 See also TODO.txt
+Version 0.8.3:
+  * Fixed a bug that caused programs to disappear from the
+    list when their start time passed, rather than when their
+    end time passed.
+  * It is now possible to go back and look at the signup
+    sheets for past programs.
+  * Program flags can now be edited.  This includes cancelation.
+  * Implemented the ability, when listing programs, to include
+    canceled ones.
+  * Signup sheets for past and canceled programs now inform
+    you of this fact rather than naively offering to let you
+    sign up more people.
+  * Fixed a bug in config.cgi that caused variables set to
+    zero to revert to their nonzero defaults the next time
+    the configuration utility is used, unless the user
+    changed the value again.
+  * Added preliminary support for program signup limits and
+    waiting lists.
+  * This release adds a "signuplimit" field to program table.  Sites
+    upgrading from 0.8.0 through 0.8.2 will need to create this field
+    in order to use it.  (If you upgrade from any release prior to
+    0.8, create-tables.pl will handle it.)  This field allows you to
+    place a limit on how many people can sign up for a given program.
+    0 means infinity, which is the out-of-the-box default, but you
+    can set a per-site default via config.cgi
+  * Released 2012 May 31
 Version 0.8.2:
   * List of programs (for program signup) is now sorted.
   * When you click "List of programs", you get up to a hundred;
@@ -7,7 +33,7 @@ Version 0.8.2:
     to list date and/or time.
   * Fixed oversight in twelvehourtimefromdt() that caused a colon
     to be used when it shouldn't be ("7:pm" instead of "7pm")
-  * Released 2012 May 29
+  * Released 2012 May 29 and deployed in Galion.
 Version 0.8.1:
   * You can now go back and edit a signup list entry.
   * You can also go back and edit the details for a program.
@@ -22,7 +48,7 @@ Version 0.8.1:
     facility did not always preserve the user's choice of visual style.
   * Minor stylesheet improvements, to the three main stylesheets,
     e.g. to provide clear visual separation of program-signup lines.
-  * Deployed in Galion, 2012 May 24.
+  * Deployed in Galion, 2012 May 24.  Never released to the public.
 Version 0.8.0:
   * Introduced the program signup facility.  This is very basic,
     but I'm planning some improvements to it soon.

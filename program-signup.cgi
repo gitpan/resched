@@ -40,6 +40,7 @@ my %categoryflag = (
 my %programflag = (
                    'L' => ['L', 'Library program', 'This is one of our official programs.'],
                    'T' => ['T', 'Third-party',     'This program is unofficial or is run by a third party.'],
+                   'W' => ['W', 'Waiting list',    'If this program fills up to the limit, a waiting list will be started.'],
                    'X' => ['X', 'Canceled',        'This program has been canceled.'],
                    '#' => ['#', 'DEBUG',           'This is not a real program.  It exists only for testing the booking software.', 'inherited'],
                   );
@@ -135,14 +136,19 @@ sub programform {
     $savebutton    = 'Create This Program';
     $hidden        = qq[<input type="hidden" name="action" value="createprogram" />];
     $record = +{# Defaults for new programs:
-                agegroup => '',
-                title    => '',
+                agegroup       => '',
+                title          => '',
+                signuplimit    => (getvariable('resched', 'program_signup_default_limit') || 0),
                };
+    if (0 + getvariable('resched', 'program_signup_waitlist')) {
+      $$record{flags} = 'W';
+    }
   }
+  my $limitsize = ($$record{limit} >= 100) ? 6 : 4;
   return qq[<form action="program-signup.cgi" method="post">\n  $hiddenpersist
   $hidden
   <table class="dbrecord">
-     <tr><th><label for="category">Category</label></th>
+     <tr><th><label for="category">Category:</label></th>
          <td>$categoryform</td></tr>
      <tr><th><label for="title">Program Title:</label></th>
          <td><input type="text" id="newprogramtitle" name="title" size="30" value="$$record{title}" /></td>
@@ -154,19 +160,15 @@ sub programform {
          <td>$startdateform</td></tr>
      <tr><th><label for="endhour">Until:</label></th>
          <td>$untilform</td></tr>
-     <!-- TODO: Checkboxes for flags. -->
+     <tr><th><label for="limit">Limit:</label></th>
+         <td><input type="text" id="signuplimit" name="signuplimit" size="$limitsize" value="$$record{signuplimit}" />
+             <span class="explan">(0 means no limit.)</span></td></tr>
+     <tr><th><label>Flags:</label></th>
+         <td>] . flagcheckboxes($$record{flags}, \%programflag) . qq[</td></tr>
   </table>
   <input type="submit" value="$savebutton" />
 </form>];
 }
-
-#sub blanknewprogramform {
-#  return programform(undef);
-#}
-
-#sub editprogram {
-#  return programform(getrecord('resched_program', $input{program}));
-#}
 
 sub updateprogram {
   my $prog = getrecord('resched_program', $input{program});
@@ -179,14 +181,15 @@ sub updateprogram {
     if ($until < $when) {
       $until = $when->clone()->add( hours => 1);
     }
-    $$prog{starttime}  = DateTime::Format::ForDB($when);
-    $$prog{endtime}    = DateTime::Format::ForDB($until);
-    my ($catid)        = $input{category} =~ /(\d+)/;
-    my $category       = getrecord('resched_program_category', $catid);
+    $$prog{starttime}     = DateTime::Format::ForDB($when);
+    $$prog{endtime}       = DateTime::Format::ForDB($until);
+    $$prog{flags}         = join '', map { $input{"flag" . $_} ? $_ : '' } keys %programflag;
+    ($$prog{signuplimit}) = $input{signuplimit}    =~ /(\d+)/;
+    my ($catid)           = $input{category} =~ /(\d+)/;
+    my $category          = getrecord('resched_program_category', $catid);
     if (ref $category) {
-      $$prog{category} = $catid;
+      $$prog{category}    = $catid;
     }
-    # TODO: Flags
     my @change = @{updaterecord('resched_program', $prog)};
     return programform(getrecord('resched_program', $$prog{id}));
   }
@@ -349,18 +352,67 @@ sub showprogram {
         @signup = grep { not ($$_{flags} =~ /X/) } @signup;
       }
     }
-    my $num = 1;
+    my $num = 0;
     my $category = getrecord('resched_program_category', $$prog{category});
     for my $i (0 .. $#signup) {
-      $signup[$i]{num} = $num++;
+      if ($signup[$i]{flags} =~ /X/) {
+        $signup[$i]{num} = '<abbr title="X - Canceled">X</abbr>';
+      } else {
+        $signup[$i]{num} = ++$num;
+      }
     }
+    my ($waitlistnote, @waitlist) = ('');
+    my $digits = ($num > 900) ? "%04d" : (($num > 90) ? "%03d" : (($num > 8) ? "%02d" : "%0d"));
+    if (($$prog{signuplimit} > 0) and ($num >= $$prog{signuplimit})) {
+      $waitlistnote = qq[<tr><td colspan="5"><div><strong><hr />Waiting List:</strong></div></td></tr>\n      ];
+      while ($num > $$prog{signuplimit}) {
+        my $w = pop @signup;
+        $num--;
+        $$w{num} = 'W' . sprintf $digits, $$w{num};
+        unshift @waitlist, $w;
+      }}
     @signup = sortbylastname(@signup);
+    my $enddt = DateTime::From::MySQL($$prog{endtime});
+    my ($newsignup, $submitbutton);
+    if ($$prog{flags} =~ /X/) {
+      $newsignup = '<tr><td colspan="4"><div class="info">This program is canceled.</div></td></tr>';
+      $submitbutton = '<!-- no submit -->';
+    } elsif ($enddt < DateTime->now(time_zone => $include::localtimezone)) {
+      $newsignup = '<tr><td colspan="4"><div class="info">This program ended ' . include::datewithtwelvehourtime($enddt) . '.</div></td></tr>';
+      $submitbutton = '<!-- no submit -->';
+    } elsif (($$prog{signuplimit} > 0) and ($num >= $$prog{signuplimit}) and (not ($$prog{flags} =~ /W/))) {
+      $newsignup = '<tr><td colspan="4"><div class="info">This program is full.</div></td></tr>';
+    } else {
+      my $newsignuplimit = $$prog{signuplimit} - (scalar @signup) - (scalar @waitlist);
+      my $limit = (($$prog{signuplimit} > 0) and (not ($$prog{flags} =~ /W/)))
+        ? qq[<input type="hidden" id="signuplimit" name="signuplimit" value="$newsignuplimit" />\n                        ]
+        : '';
+      $newsignup = blankattender(1)
+        . ($input{useajax} eq 'off' ? '' : qq[
+      <tr id="insertemptysignupshere">
+        <td colspan="4">$limit<input type="hidden" id="numofnewsignups" name="numofnewsignups" value="1" />
+                        <span id="onemomentnoticegoeshere"><span id="onemomentnotice" style="display: none;">One moment...</span></span>
+                        <input type="button" id="addmoresignupsbutton" value="Add More" onclick="augmentprogramsignupform();" /></td>
+       </tr>]);
+      $submitbutton = qq[<input type="submit" value="Submit" />];
+    }
+    my $limit = $$prog{signuplimit} ? qq[ out of $$prog{signuplimit} permitted] : '';
     my $howmany = $input{showcanceled}
       ? qq[Altogether there have been $num people signed up for this program.]
-      : qq[There are currently $num people signed up for this program.];
+      : qq[There are currently $num people signed up for this program$limit.];
+    my $title = ($$prog{flags} =~ /X/)
+      ? qq[Canceled: $$prog{title} <div>(was scheduled $when)</div>]
+      : qq[$$prog{title}, $when];
+    my $makerow = sub {
+      my ($s) = @_;
+      my $flags = showflags($$s{flags}, \%signupflag);
+      return qq[<tr class="signup"><td>$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$$s{attender}</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>\n      ]
+    };
+    my $existingsignups = join "", map { $makerow->($_) } @signup;
+    my $waitlistsignups = join "", map { $makerow->($_) } @waitlist;
     return qq[
 <div style=" text-align: center; font-size: 1.2em; ">
-  <div id="programtitle"><strong>$$prog{title}, $when</strong></div>
+  <div id="programtitle"><strong>$title</strong></div>
   <div id="agegroupandcategory">
        <span class="programagegroup">for $$prog{agegroup}</span>
        <span class="programcategory">(category: $$category{category})</span></div>
@@ -373,20 +425,9 @@ sub showprogram {
     <table class="table signupsheet"><thead>
       <tr><td>#</td><td>Attender</td><td>Phone</td><td>Flags</td><td>Comments</td></tr>
     </thead><tbody>
-      ].(join "\n", map {
-        my $s = $_;
-        my $flags = showflags($$s{flags}, \%signupflag);
-        qq[<tr class="signup"><td>$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$$s{attender}</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>]
-      } @signup)
-        . blankattender(1)
-        . ($input{useajax} eq 'off' ? '' : qq[
-      <tr id="insertemptysignupshere">
-        <td colspan="4"><input type="hidden" id="numofnewsignups" name="numofnewsignups" value="1" />
-                        <span id="onemomentnoticegoeshere"><span id="onemomentnotice" style="display: none;">One moment...</span></span>
-                        <input type="button" id="addmoresignupsbutton" value="Add More" onclick="augmentprogramsignupform();" /></td>
-       </tr>]) . qq[
+      ]. $existingsignups . $waitlistnote . $waitlistsignups . $newsignup . qq[
     </tbody></table>
-    <input type="submit" value="Submit" />
+    $submitbutton
     </form>\n$cancelednote\n
     <div class="wholeprogramactions"><a class="button" href="program-signup.cgi?action=editprogram&amp;program=$$prog{id}&amp;$persistentvars">Edit Program Details</a></div>];
   } else {
@@ -419,7 +460,7 @@ sub showflags {
     my ($char, $name, $description, $inherit) = @{$$flaghash{$f}};
     qq[<abbr title="$description" class="flag"><nobr><span class="flagchar">$char</span> - <span class="flagname">$name</span></nobr></abbr>]
   } split //, $flags;
-  return join '', @f;
+  return join ' ', @f;
 }
 
 sub sortbylastname {
@@ -446,30 +487,47 @@ sub sortbylastname {
 }
 
 sub listprograms {
-  my @program = getprogramlist(100);
-  my $programlist = join "\n       ", map {
-    my $prec  = $_;
-    my $title = encode_entities($$prec{title});
-    my $dt    = DateTime::From::MySQL($$prec{starttime});
-    my $when  = include::datewithtwelvehourtime($dt);
-    my $dow   = $dt->day_name();
-    my $ages  = $$prec{agegroup};
+    my $cutoff      = $input{cutoffdate} ? DateTime::From::MySQL($input{cutoffdate}) : undef;
+    #warn "Cutoff Date: $cutoff\n";
+    my $prev        = join "\n", map {
+      my ($increment, $unit, $unitcount) = @$_;
+      my $prevcodt    = $cutoff ? DateTime::From::MySQL($input{cutoffdate})->subtract( $unit => $unitcount )
+                                : DateTime->now( time_zone => $include::localtimezone )->subtract( $unit => $unitcount );
+      my $prevcod     = DateTime::Format::ForURL($prevcodt);
+      qq[<a class="button" href="program-signup.cgi?action=listprograms&amp;$persistentvars&amp;cutoffdate=$prevcod&amp;showcanceled=$input{showcanceled}">$increment</a>];
+    } (['Day', 'days', 1], ['Week', 'days', 7], ['Month', 'months', 1], ['Quarter', 'months', 3], ['Year', 'years', 1]);
+    my $cutoffnote  = $cutoff ? qq[<div class="info">Showing programs ending by ] . include::datewithtwelvehourtime($cutoff) . qq[</div>\n       ] : '';
+    my @program     = getprogramlist(100, $cutoff);
+    my $programlist = join "\n       ", map {
+      my $prec      = $_;
+      my $title     = ($$prec{flags} =~ /X/)
+                        ? '<del class="redcancel">' . encode_entities($$prec{title}) . '</del>'
+                        : encode_entities($$prec{title});
+      my $dt        = DateTime::From::MySQL($$prec{starttime});
+      my $when      = include::datewithtwelvehourtime($dt);
+      my $dow       = $dt->day_name();
+      my $ages      = $$prec{agegroup};
     qq[<li><a href="program-signup.cgi?action=showprogram&amp;program=$$prec{id}&amp;$persistentvars" title="$when">$title</a>
            for $ages, $dow, $when</li>]
   } @program;
-  return qq[<div><strong>Upcoming Programs:</strong></div><ul>$programlist</ul>];
+  return qq[$cutoffnote<div><strong>Upcoming Programs:</strong></div><ul>$programlist</ul>
+  <div class="listactions">Show Previous: $prev</div>
+  <div class="listactions"><a class="button" href="program-signup.cgi?action=listprograms&amp;$persistentvars&amp;cutoffdate=] . ($cutoff ? DateTime::Format::ForURL($cutoff) : '') . qq[&amp;showcanceled=1">Show Canceled Programs</a></div>];
 }
 
 sub getprogramlist {
-  my ($maxprogs) = @_;
-  # TODO: use parameters to do things like allow showing old programs
+  my ($maxprogs, $cutoff) = @_;
+  $cutoff ||= DateTime->now(time_zone => $include::localtimezone);
   $maxprogs = 12 if $maxprogs < 1;
-  my @program = grep { not $$_{flags} =~ /X/
-                     } sort {
-                       $$a{starttime} cmp $$b{starttime}
-                         or $$a{endtime} cmp $$b{endtime}
-                           or $$a{id} cmp $$b{id}
-                     } getsince('resched_program', 'starttime', DateTime->now(time_zone => $include::localtimezone));
+  my @program = getsince('resched_program', 'endtime', $cutoff);
+  @program = sort {
+    $$a{starttime} cmp $$b{starttime}
+      or $$a{endtime} cmp $$b{endtime}
+        or $$a{id} cmp $$b{id}
+      } @program;
+  if (not $input{showcanceled}) {
+    @program = grep { not $$_{flags} =~ /X/ } @program;
+  }
   if ($maxprogs < scalar @program) {
     @program = @program[ 0 .. ($maxprogs - 1)];
   }
@@ -480,7 +538,9 @@ sub usersidebar {
   my @program = getprogramlist(getvariable('resched', 'max_sidebar_programs'));
   my $programlist = join "\n       ", map {
     my $prec     = $_;
-    my $title    = encode_entities($$prec{title});
+    my $title    = ($$prec{flags} =~ /X/)
+      ? '<del class="redcancel">' . encode_entities($$prec{title}) . '</del>'
+      : encode_entities($$prec{title});
     my $dt       = DateTime::From::MySQL($$prec{starttime});
     my $when     = include::datewithtwelvehourtime($dt);
     my $showdate = getvariable('resched', 'sidebar_programs_showdate') ? (' ' . $dt->month_abbr() . '&nbsp;' . $dt->mday()) : '';

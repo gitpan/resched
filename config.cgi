@@ -63,6 +63,17 @@ my %cfgvar =
                                description => 'Should the booking timestamp be shown? (1=yes, 0=no)',
                                sortkey     => 501,
                               },
+   program_signup_waitlist => +{
+                                default     => 1,
+                                description => 'If the number of people signed up for a program reaches the limit, do we allow more names to be taken for a waiting list?  0 = No, 1 = Yes.  Either way, it can be changed on a per-program basis with the W flag, but new programs are created according to this preference.',
+                                sortkey     => 712,
+                               },
+   program_signup_default_limit => +{
+                                     default     => 0,
+                                     description => 'By default, how many people can sign up for any given one of your programs.  This can still be changed on a per-program basis, but new programs get this value if you do not change it.  0 means no limit.  The fire-safety capacity of your primary meeting room makes a good value here.',
+                                     sortkey     => 713,
+                                    },
+
   );
 
 if ($auth::user) {
@@ -99,7 +110,12 @@ sub savechanges {
 
 sub configform {
   for my $var (keys %cfgvar) {
-    ${$cfgvar{$var}}{value} = getvariable('resched', $var) || ${$cfgvar{$var}}{default};
+    my $value = getvariable('resched', $var);
+    if ($value eq '0') {
+      ${$cfgvar{$var}}{value} = $value;
+    } else {
+      ${$cfgvar{$var}}{value} = $value || ${$cfgvar{$var}}{default};
+    }
   }
   return qq[<form id="configform" action="config.cgi" method="POST">
     <input type="hidden" name="action" value="save" />

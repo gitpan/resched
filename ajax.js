@@ -128,23 +128,35 @@ function augmentprogramsignupform() {
   toggledisplay('addmoresignupsbutton', null, 'none');
   toggledisplay('onemomentnotice', null, 'inline');
   var varelt   = document.getElementById('numofnewsignups');
-  var num      = varelt.value + 1;
-  //var args = 'action=AjaxAddSignup' + '&' + 'numofnewsignups=' + num;
-  //onemoment('onemomentnoticegoeshere');
-  //sendajaxrequest(args, 'program-signup.cgi');
-  var numerate = '<td>?</td>';
-  var attender = '<td><input type="text" id="signup' + num + 'attender" name="signup' + num + 'attender" size="30" /></td>';
-  var phonenum = '<td><input type="text" id="signup' + num + 'phone"    name="signup' + num + 'phone"    size="15" /></td>';
-  var chkboxes = '<td></td>';
-  var comments = '<td><textarea id="signup' + num + 'comments" name="signup' + num + 'comments" rows="3" cols="25"></textarea></td>';
-  var tablerow = '<tr>' + numerate + attender + phonenum + chkboxes + comments + '</tr>';
-  var location = document.getElementById('insertemptysignupshere');
-  insert_before_element(tablerow, location);
-  varelt.value = num;
-  toggledisplay('onemomentnotice', null, 'none');
-  toggledisplay('addmoresignupsbutton', null, 'inline');
-  var focelt = document.getElementById('signup' + num + 'attender');
-  focelt.focus();
+  var num      = varelt.value;
+  num          = num - 0;
+  var slimelt  = document.getElementById('signuplimit');
+  var slimit;
+  if (slimelt) {
+    slimit   = slimelt.value - 0;
+  } else {
+    slimit   = num + 1;
+  }
+  if (num < slimit) {
+    num = num + 1;
+    var numerate = '<td>?</td>';
+    var attender = '<td><input type="text" id="signup' + num + 'attender" name="signup' + num + 'attender" size="30" /></td>';
+    var phonenum = '<td><input type="text" id="signup' + num + 'phone"    name="signup' + num + 'phone"    size="15" /></td>';
+    var chkboxes = '<td></td>';
+    var comments = '<td><textarea id="signup' + num + 'comments" name="signup' + num + 'comments" rows="3" cols="25"></textarea></td>';
+    var tablerow = '<tr>' + numerate + attender + phonenum + chkboxes + comments + '</tr>';
+    var location = document.getElementById('insertemptysignupshere');
+    insert_before_element(tablerow, location);
+    varelt.value = num;
+    toggledisplay('onemomentnotice', null, 'none');
+    toggledisplay('addmoresignupsbutton', null, 'inline');
+    var focelt = document.getElementById('signup' + num + 'attender');
+    focelt.focus();
+  } else {
+    var elt = document.getElementById('onemomentnotice');
+    insert_before_element('This program is full.', elt);
+    toggledisplay('onemomentnotice', null, 'none');
+  }
 }
 
 function changerecurform() {

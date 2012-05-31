@@ -132,12 +132,13 @@ $db->prepare(
     "CREATE TABLE IF NOT EXISTS
      resched_program (
           id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
-          category  integer,
-          title     mediumtext,
-          agegroup  tinytext,
-          starttime datetime,
-          endtime   datetime,
-          flags     tinytext
+          category    integer,
+          title       mediumtext,
+          agegroup    tinytext,
+          starttime   datetime,
+          endtime     datetime,
+          signuplimit integer,
+          flags       tinytext
      )"
      )->execute();
 

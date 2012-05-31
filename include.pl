@@ -125,7 +125,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.8.2 vintage 2012 May 29. -->
+   <!-- resched version 0.8.3 vintage 2012 May 31. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />
