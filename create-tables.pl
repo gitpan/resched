@@ -90,7 +90,8 @@ $db->prepare(
           hashedpass tinytext,
           fullname   mediumtext,
           nickname   mediumtext,
-          prefs      mediumtext
+          prefs      mediumtext,
+          salt       tinytext
      )"
     )->execute();
 

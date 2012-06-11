@@ -1,4 +1,54 @@
 See also TODO.txt
+Version 0.8.5:
+  * Added a config variable that lets you set the number
+    of seconds after a successful signup before the
+    automatic redirect to a fresh copy of the form.
+  * Added redirects to the program signup facility.
+    Uses the same url_base and redirect_seconds config
+    variables as the main resource booking facility's
+    redirects.
+  * Fixed a bug in the create-user.pl script that caused
+    password hashes to be generated incorrectly when salt
+    was in use, preventing the user from logging in.
+  * Introduced a simple script that can be run from a cron
+    job to clean out old expired auth cookies if desired.
+    Currently this feature is untested.
+  * Fixed a bug in program signup that caused incorrect flag
+    inheritance and could potentially have caused other bugs
+    down the line.
+  * Cleaned up the rest of the "\"escaped\" double quotes".
+  * Refactored alias search to a subroutine, aliassearch(),
+    to make the main if/elsif/elsif section (of index.cgi)
+    easier to follow.
+  * Refactored room overview (i.e., calendar view) to
+    a subroutine, "overview", for the same reason.
+  * Refactored makebooking() out to a subroutine, for
+    the same reason.  Also, made makebooking() more
+    readable by factoring out assemble_extranotes()
+  * Refactored viewbooking() out to a subroutine.
+  * You can now specify a custom bookmark icon via config.cgi
+  * Released 2012 June 11.
+Version 0.8.4:
+  * Fixed a bug that prevented the booking schedule from
+    displaying if there was a booking that started too early.
+  * It is now possible to view a program signup list in
+    the order in which they signed up.  (Alphabetical by
+    last name is still the default.  To see the list in
+    signup order, click the # at the head of that column.)
+  * Setting program flags at program creation time now works.
+  * Made one very small Galion-specific change to smooth the
+    upgrade process for us.
+  * Added salt field to users table.  Sites upgrading from
+    an earlier version must add the field (tinytext) if 
+    they want to use it.
+  * Added a create-user.pl script to assist with creating
+    user records, so you don't have to mess around with
+    salt generation and password hashing and whatnot.
+  * Marked the first column on program signup sheets as
+    numeric, so that the numbers are right-aligned.
+  * Made the default sort on program signup sheets
+    case-insensitive.
+  * Released 2012 Jun 05
 Version 0.8.3:
   * Fixed a bug that caused programs to disappear from the
     list when their start time passed, rather than when their
@@ -19,11 +69,11 @@ Version 0.8.3:
     waiting lists.
   * This release adds a "signuplimit" field to program table.  Sites
     upgrading from 0.8.0 through 0.8.2 will need to create this field
-    in order to use it.  (If you upgrade from any release prior to
-    0.8, create-tables.pl will handle it.)  This field allows you to
-    place a limit on how many people can sign up for a given program.
-    0 means infinity, which is the out-of-the-box default, but you
-    can set a per-site default via config.cgi
+    (integer) in order to use it.  (If you upgrade from any release
+    prior to 0.8, create-tables.pl will handle it.)  This field allows
+    you to place a limit on how many people can sign up for a given
+    program.  0 means infinity, which is the out-of-the-box default,
+    but you can set a per-site default via config.cgi
   * Released 2012 May 31
 Version 0.8.2:
   * List of programs (for program signup) is now sorted.
@@ -112,7 +162,7 @@ Version 0.7.7:
     Note that if you are upgrading from an earlier version, you will
     need to add the combine field (tinytext) to the resched_resources
     table before you can use it.  The field holds a comma-separted
-    list of the the record id numbers of the other rooms you want to
+    list of the record id numbers of the other rooms you want to
     be able to book together with the one in the current record.
   * Fixed the Choose Resources & Dates list to be generated from
     include::categories (previously it was hardcoded).

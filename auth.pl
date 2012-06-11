@@ -28,6 +28,7 @@ my $default_expiration = DateTime->now->add(days => 1, hours => 12);
 #  username        mediumtext       (username for login)
 #  hashedpass      tinytext         (MD5 Base64 hashed version of the password, for login)
 
+# If the users table contains a salt field, it will be used.
 # If the users table contains a nickname or firstname or fullname
 # field, it will be used (in that order of preference), but this is
 # not required.  (username will be used in their absense.)
@@ -131,11 +132,21 @@ sub authbox {
     if ($r and $debug) {
       $status .= "<!-- Got record for user $$r{id}. -->\n";
     }
+    my $chash = md5_base64($main::input{AUTH_login_password} . $$r{salt});
+    use Data::Dumper; warn "Attempting login: " . Dumper(+{
+                                                           rpass => $$r{password},
+                                                           rhash => $$r{hashedpass},
+                                                           rsalt => $$r{salt},
+                                                           apass => $main::input{AUTH_login_password},
+                                                           user  => $main::input{AUTH_login_username},
+                                                           recid => $$r{id},
+                                                           chash => $chash,
+                                                          });
     if ($r and
         (
          ($$r{password} and not $$r{hashedpass} and $$r{password} eq $main::input{AUTH_login_password})
          or
-         ($$r{hashedpass} eq md5_base64($main::input{AUTH_login_password}))
+         ((defined $$r{hashedpass}) and ($$r{hashedpass} eq $chash))
         )
        ) {
       $status .= "<!-- Verified password.  Setting user to $$r{id} -->\n";

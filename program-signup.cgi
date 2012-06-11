@@ -2,8 +2,6 @@
 # -*- cperl -*-
 
 our $debug = 0;
-$maxrows = 150; # safety precaution
-our $didyoumean_enabled = 1;
 
 $ENV{PATH}='';
 $ENV{ENV}='';
@@ -12,7 +10,7 @@ use DateTime;
 use DateTime::Span;
 use HTML::Entities qw(); sub encode_entities{ my $x = HTML::Entities::encode_entities(shift@_);
                                               $x =~ s/[-][-]/&mdash;/g;
-                                              return $x; }
+                                             return $x; }
 use Data::Dumper;
 
 require "./forminput.pl";
@@ -51,10 +49,10 @@ my %signupflag = (
                  );
 
 sub respondtouser { # This is the non-AJAX way.
-  my ($content, $title) = @_;
+  my ($content, $title, $redirect) = @_;
   $content or die "No content.";
   $title ||= 'Program Signup';
-  print include::standardoutput($title, $content, $ab, $input{usestyle});
+  print include::standardoutput($title, $content, $ab, $input{usestyle}, $redirect);
   exit 0;
 }
 
@@ -66,7 +64,7 @@ if ($auth::user) {
   } elsif ($input{action} eq 'editprogram') {
     respondtouser(programform(getrecord('resched_program', $input{program})));
   } elsif ($input{action} eq 'updateprogram') {
-    respondtouser(updateprogram());
+    respondtouser(updateprogram(), "Program Details");
   } elsif ($input{action} eq 'showprogram') {
     my $progtitle = "Program Signup";
     my $prog = getrecord('resched_program', $input{program});
@@ -75,7 +73,7 @@ if ($auth::user) {
     }
     respondtouser(showprogram(), $progtitle);
   } elsif ($input{action} eq 'dosignup') {
-    respondtouser(dosignup(), "Program Signup");
+    respondtouser(dosignup());
   } elsif ($input{action} eq 'editsignup') {
     respondtouser(editsignup(), "Edit Program Signup");
   } elsif ($input{action} eq 'updatesignup') {
@@ -94,6 +92,26 @@ if ($auth::user) {
   }
 } else {
   respondtouser(qq[You probably need to log in.], "Not Authorized");
+}
+
+sub redirectheader {
+  my ($action) = @_;
+  return unless $action;
+  my $seconds = getvariable('resched', 'redirect_seconds') || 15;
+  my $uri = getvariable('resched', 'url_base')
+    . qq[program-signup.cgi?action=$action&amp;persistentvars];
+  foreach my $key (qw(program category attender id sortby cutoffdate)) {
+    $uri .= qq[&amp;program=$input{$key}] if $input{$key};
+  }
+  if ($0 =~ m~resched-dev/~) {
+    # Some sites (such as Galion) may choose deploy a stable version
+    # for production use and a development version for testing.  If
+    # the two versions are in directories called resched and
+    # resched-dev (respectively) under the same parent directory,
+    # this makes it work out right:
+    $uri =~ s~resched/~resched-dev/~;
+  }
+  return qq[<meta http-equiv="refresh" content="$seconds; URL=$uri" />]
 }
 
 sub dateform {
@@ -263,20 +281,27 @@ sub createprogram {
   $catid += 0;
   my $category = getrecord('resched_program_category', $catid);
   if (ref $category) {
-    my $flags = join '', map { $$_[0] } grep { $$_[3] eq 'inherited' } values %categoryflag;
+    my $flags = inheritflags($$category{flags}, \%categoryflag);
+    for my $f (keys %programflag) {
+      if ($input{'flag' . $f}) {
+        $flags .= $f unless $flags =~ /[$f]/;
+      }}
     my $newprogram = +{
                        category  => $catid,
                        title     => encode_entities($input{title}),
                        agegroup  => encode_entities($input{agegroup}),
                        starttime => DateTime::Format::ForDB($when),
                        endtime   => DateTime::Format::ForDB($until),
+                       flags     => $flags,
                       };
     my $result = addrecord('resched_program', $newprogram);
     if ($result) {
-      $input{program} = $db::added_record_id;
+      $input{program} = $db::added_record_id; # both showprogram() and redirectheader() need this.
       return ((qq[<div class="info"><div><strong>Program Created</strong></div>
   Here is the signup sheet for your new program:</div>]
-               . dosignup()), "Program Created: $newprogramtitle");
+               . showprogram()),
+              "Program Created: $newprogramtitle",
+              redirectheader('showprogram'));
     } else {
       return qq[<div class="error"><div><strong>Error</strong></div>
                 Something went wrong when attempting to add your new program to the database.
@@ -293,7 +318,8 @@ sub createprogram {
 sub dosignup {
   my ($progid) = $input{program};
   my @result;
-  my $prog = getrecord('resched_program', $id);
+  my $prog = getrecord('resched_program', $progid);
+  #warn "Incorrect program lookup, signup will probably be bollocks" if $$prog{id} ne $progid;
   if ($prog) {
     for my $n (1 .. ($input{numofnewsignups} || 1)) {
       my $attender = encode_entities($input{"signup" . $n . "attender"});
@@ -308,10 +334,10 @@ sub dosignup {
                                   attender   => $attender,
                                   phone      => $phone,
                                   comments   => $comments,
-                                  flags      => inheritflags($$category{flags}, \%categoryflag),
+                                  flags      => inheritflags($$prog{flags}, \%programflag),
                                  });
       }}
-    return showprogram();
+    return (showprogram(), "Program Signup", redirectheader('showprogram'));
   } else {
     return qq[<div class="error"><div><strong>Error:</strong></div>
      I cannot seem to find any record of program number $id in the database.</div>];
@@ -321,13 +347,16 @@ sub dosignup {
 sub inheritflags {
   my ($sourceflags, $flaghash) = @_;
   my $flags  = '';
+  my @considered;
   for my $f (split //, $sourceflags) {
+    push @considered, $f;
     my $fr = $$flaghash{$f};
     if (ref $fr) {
       my ($char, $name, $description, $inherited) = @$fr;
       if (defined $inherited and ($inherited eq 'inherited')) {
         $flags .= $char;
       }}}
+  #use Data::Dumper; warn Dumper( +{ sourceflags => $sourceflags, flaghash => $flaghash, result => $flags, considered => \@considered, } );
   return $flags;
 }
 
@@ -371,7 +400,11 @@ sub showprogram {
         $$w{num} = 'W' . sprintf $digits, $$w{num};
         unshift @waitlist, $w;
       }}
-    @signup = sortbylastname(@signup);
+    if ($input{sortby} eq 'num') {
+      # Nothing to do: they are already in this order.
+    } else {
+      @signup = sortbylastname(@signup);
+    }
     my $enddt = DateTime::From::MySQL($$prog{endtime});
     my ($newsignup, $submitbutton);
     if ($$prog{flags} =~ /X/) {
@@ -406,7 +439,7 @@ sub showprogram {
     my $makerow = sub {
       my ($s) = @_;
       my $flags = showflags($$s{flags}, \%signupflag);
-      return qq[<tr class="signup"><td>$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$$s{attender}</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>\n      ]
+      return qq[<tr class="signup"><td class="numeric">$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$$s{attender}</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>\n      ]
     };
     my $existingsignups = join "", map { $makerow->($_) } @signup;
     my $waitlistsignups = join "", map { $makerow->($_) } @waitlist;
@@ -423,7 +456,7 @@ sub showprogram {
     <input type="hidden" name="action" value="dosignup" />
     <input type="hidden" name="dummyvar" value="thisdoesnothing" />
     <table class="table signupsheet"><thead>
-      <tr><td>#</td><td>Attender</td><td>Phone</td><td>Flags</td><td>Comments</td></tr>
+      <tr><td class="numeric"><a title="Click here to sort by this column." href="program-signup.cgi?action=showprogram&amp;program=$input{program}&amp;sortby=num&amp;$persistentvars&amp;showcanceled=$input{showcanceled}">#</a></td><td>Attender</td><td>Phone</td><td>Flags</td><td>Comments</td></tr>
     </thead><tbody>
       ]. $existingsignups . $waitlistnote . $waitlistsignups . $newsignup . qq[
     </tbody></table>
@@ -476,10 +509,10 @@ sub sortbylastname {
     my ($last, $rest, $sortby);
     if ($$rec{attender} =~ /,/) {
       # If it's got a comma in it, assume it's already in surname-first order.
-      $sortby = $$rec{attender};
+      $sortby = lc $$rec{attender};
     } else {
       ($rest, $last) = $$rec{attender} =~ /^(.*?)\s*(\w+)\s*$/;
-      $sortby = "$last, $rest";
+      $sortby = lc "$last, $rest";
     }
     #use Data::Dumper; warn Dumper(+{ rec => $rec, sortby => $sortby });
     [ $rec, $sortby ];

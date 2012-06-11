@@ -1,4 +1,9 @@
 Desired Changes:
+ * Currently, the fact that we're closed on Sundays is hardcoded.
+   Days of the week when you're always closed should instead be
+   configurable in config.cgi.  Changes would be needed in overview()
+   and maybe other places, plus config.cgi.
+ * Opening and closing times are hardcoded.  They should not be.
  * Provide a statistical_categories variable, just like
    categories but used only by the statistics (not sidebar stuff)
    and in preference to categories.
@@ -9,9 +14,6 @@ Desired Changes:
  * After a suitable deprecation period, we should remove support in
    auth.pl for checking the deprecated (unhashed) password field.  The
    hashedpass field should be used instead.
- * There are still a lot of "double-quoted strings with \"escaped\"
-   quotes in them", which should be convered to qq[a more "modern"
-   quoting style]
  * It would be good to add some POD, to make the software more 
    discoverable on the CPAN.
  * The whole thing should be profiled for perf bottlenecks.

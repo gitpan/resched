@@ -6,8 +6,8 @@ be done when installing this software.
     Issue any necessary chmod commands to ensure that the web server
     user can access the files and execute the cgi scripts.  For
     security reasons, it is important to ensure that dbconfig.pl
-    cannot be directly accessed.  (If .pl is associated with
-    cgi execution, chmod ugo-x dbconfig.pl should do this.)
+    cannot be directly accessed by web users.  (If .pl is associated
+    with cgi execution, chmod ugo-x dbconfig.pl should do this.)
 
  2. Ensure that you have the prerequisite software installed.
    * You need an RDBMS.  At this time MySQL is the only one supported,
@@ -16,8 +16,9 @@ be done when installing this software.
    * You need a web server, of course.  I've only tested with Apache.
      The web server must be configured to serve out the directory
      where you unzipped resched, and the .cgi extension must be
-     associated with Perl.
-   * Speaking of which, you need Perl, and at least the following
+     associated with perl (or may use shebangs if /usr/bin/perl
+     is the correct path to perl on your system).
+   * Speaking of which, you need perl, and at least the following
      modules (available from the CPAN): DateTime, DateTime::Span,
      DateTime::Format::MySQL, DBI, DBD::mysql, Taint, Carp, 
      Digest::MD5, HTML::Entities, Data::Dumper (for debugging),
@@ -33,8 +34,8 @@ be done when installing this software.
 
  5. Log into the RDBMS as a privileged user (e.g., root), create the
     database you specified in dbconfig.pl, and grant all privileges on
-    that database to the user you specified in dbconfig.pl.  The SQL to
-    do this will probably look something like the following:
+    that database to the user you specified in dbconfig.pl.  The SQL
+    to do this will probably look something like the following:
     CREATE DATABASE resched;
     GRANT ALL PRIVILEGES ON resched.* TO username@localhost
           IDENTIFIED BY 'somepassword';

@@ -63,6 +63,11 @@ my %cfgvar =
                                description => 'Should the booking timestamp be shown? (1=yes, 0=no)',
                                sortkey     => 501,
                               },
+   redirect_secionds => +{
+                          description  => 'After signing someone up, resched shows the adjusted schedule or signup sheet; however, since hitting refresh would result in performing the action again, resched redirects after a few seconds to a fresh copy of the schedule or signup sheet.  This controls how many seconds it waits before doing so.',
+                          default      => 15,
+                          sortkey      => 551,
+                         },
    program_signup_waitlist => +{
                                 default     => 1,
                                 description => 'If the number of people signed up for a program reaches the limit, do we allow more names to be taken for a waiting list?  0 = No, 1 = Yes.  Either way, it can be changed on a per-program basis with the W flag, but new programs are created according to this preference.',
@@ -73,7 +78,11 @@ my %cfgvar =
                                      description => 'By default, how many people can sign up for any given one of your programs.  This can still be changed on a per-program basis, but new programs get this value if you do not change it.  0 means no limit.  The fire-safety capacity of your primary meeting room makes a good value here.',
                                      sortkey     => 713,
                                     },
-
+   bookmark_icon => +{
+                      default     => 'resched.ico',
+                      description => 'Bookmark icon (favicon) to suggest that the browser use to represent (your installation of) resched.',
+                      sortkey     => 9000,
+                     },
   );
 
 if ($auth::user) {

@@ -76,702 +76,45 @@ if ($auth::user) {
     print include::standardoutput($title, $content, $ab, $input{usestyle});
   } elsif ($input{alias}) {
     # This is actually the alias search.
-    my $alias = include::normalisebookedfor($input{alias});
-    {
-      my %a = map { $$_{id} => $_
-                  } searchrecord('resched_alias', 'alias', $alias),
-                    searchrecord('resched_alias', 'canon', $alias);
-      @arec = map { $a{$_} } sort { $$a <=> $$b } keys %a;
-    }
-    if (@arec) {
-      my $content = join "\n<hr />\n", qq[<div>Names should be entered here in <q>normalized form</q>:
-                   <ul>
-                       <li>lowercase</li>
-                       <li>no punctuation</li>
-                       <li>first name first</li>
-                       <li>leave out any parenthesized marks (e.g., <q>(IN)</q> for internet policy)</li>
-                   </ul>
-              </div>], map {
-        my $arec = $_;
-        my $aliasenc = encode_entities($$arec{alias});
-        my $canonenc = encode_entities($$arec{canon});
-        my $anum = sprintf "%04d", $$arec{id};
-        my $editcontrols = ($input{action} eq 'editalias')
-          ? qq[<input type="submit" value="Save Changes" />
-              <!-- TODO: a class="button">Delete Alias</a -->]
-          : qq[<br /><a class="button" href="./?action=editalias&amp;alias=$aliasenc">Edit</a>];
-        my $aliascontent = ($input{action} eq 'editalias')
-          ? qq[<input type="text" size="30" name="alias" value="$aliasenc" />]
-          : $aliasenc;
-        my $canoncontent = ($input{action} eq 'editalias')
-          ? qq[<input type="text" size="30" name="canon" value="$canonenc" />]
-          : $canonenc;
-        my $ilsname = getvariable('resched', 'ils_name');
-        qq[<form action="index.cgi" method="post">
-              <input type="hidden" name="aliasid" value="$$arec{id}" />
-              <input type="hidden" name="action" value="updatealias" />
-              <div><strong>Alias #$anum:</strong></div>
-              <table class="table alias"><tbody>
-                  <tr><th>Alias:</th><td>$aliascontent</td></tr>
-                  <tr><th><div>Canonical Name:</div>
-                          (as spelled in $ilsname)</th>
-                      <td>$canoncontent</td></tr>
-              </tbody></table>
-              $editcontrols
-           </form>]
-      } @arec;
-      print include::standardoutput("Alias: $alias",
-                                    $content,
-                                    $ab, $input{usestyle});
-    } else {
-      print include::standardoutput("Alias Not Found: $alias",
-                                    qq[<div class="error">Sorry, but I couldn't find an alias
-                                         record for <q>$alias</q>.</div>],
-                                    $ab, $input{usestyle});
-    }
+    my ($content, $title) = aliassearch();
+    print include::standardoutput($title, $content, $ab, $input{usestyle});
   } elsif ($input{overview}) {
     # User wants to just see a broad overview for certain resource(s).
-    my @res = split /,\s*/, $input{overview};
-    my %res;
-    for my $id (@res) {
-      $res{$id} =
-        {
-         %{getrecord('resched_resources', $id)}
-        };
-    }
-    my %sch = map { $_ => scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
-    my @calendar;
-    for (qw(startyear startmonth startmday endyear endmonth endmday)) {
-      ($input{$_}) = $input{$_} =~ /(\d+)/;
-    }
-    $input{endyear} ||= $input{startyear};
-    $input{endmonth} ||= $input{startmonth};
-    my $begdt = DateTime->new(
-                              year  => $input{startyear},
-                              month => $input{startmonth},
-                              day   => ($input{startmday} || 1),
-                             );
-    my $enddt = DateTime->new(
-                              year   => $input{endyear},
-                              month  => $input{endmonth},
-                              day    => ($input{endmday} ||
-                                         last_mday_of_month(year   => $input{endyear},
-                                                            month  => $input{endmonth})),
-                              #hour   => 23, # i.e., _after_ the dt that starts this day, but before the next day.
-                             );
-    my $monthdt = $begdt->clone();
-    my $dt = $monthdt->clone();
-
-    push @calendar, qq[<!-- begdt: $begdt; enddt: $enddt -->
-      <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
-        <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
-        <tbody><tr>];
-    if ($dt->wday > 1) { push @calendar, (qq[<td></td>] x ($dt->wday - 1)); }
-    while ($dt <= $enddt) {
-      if ($dt->wday == 7) {
-        # We don't do Sunday, but we do wrap around to the next week.
-        push @calendar, qq[</tr>\n<tr>];
-      } else {
-        my @b = overview_get_day_bookings($dt, @res);
-        my ($y, $mon, $mday) = ($dt->year, $dt->month, $dt->mday);
-        push @calendar, qq[<td><div class="calmdaynum"><a href="./?view=].(join ",", @res).qq[&amp;mday=$mday&amp;year=$y&amp;month=$mon&amp;$persistentvars">$mday</a></div>].
-          ((@b) ? (join "\n", map {
-            my $ftime = include::twelvehourtimefromdt(DateTime::From::MySQL($$_{fromtime}));
-            my $utime = include::twelvehourtimefromdt(DateTime::From::MySQL($$_{until}));
-            "<div>".(@res>1 ? qq[<span class="calresname">$res{$$_{resource}}{name}:</span>] : '')
-              .qq[ <a href="./?booking=$$_{id}&amp;$persistentvars">$$_{bookedfor}</a> ($ftime - $utime)</div>]
-            } @b) : '<p class="calemptyday">&nbsp;</p>' )
-          .qq[</td>];
-      }
-      # Now, increment the dt and check for month changeover.
-      $dt = $dt->add(days => 1);
-      if (($dt->month ne $monthdt->month) or $dt > $enddt) {
-        if ($dt < $enddt) {
-          push @calendar, qq[</tr></tbody></table>
-          <p class="calmonthtransition" />
-          <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
-          <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
-          <tbody><tr>] . join "", map {'<td></td>'} 1..($dt->dow - 1);
-          $monthdt = $dt->clone();
-        } else {
-          push @calendar, qq[</tr></tbody></table>\n    <p class="calmonthtransition" />];
-        }
-      }
-    }
-    my %monabbr = ( 1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Aug', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dec');
-    my $startmonthoptions = include::optionlist('startmonth', \%monabbr, $begdt->month);
-    my $endmonthoptions   = include::optionlist('endmonth', \%monabbr, $enddt->month);
-    push @calendar, qq[
-    <form class="nav" action="index.cgi" method="get">Get overview
-         <input type="hidden" name="overview" value="$input{overview}" />
-         <input type="hidden" name="usestyle" value="$input{usestyle}" />
-         <input type="hidden" name="useajax" value="$input{useajax}" />
-         <span class="nobr">starting from $startmonthoptions
-               of <input type="text" name="startyear" size="5" value="$input{startyear}" />
-               </span>
-           and
-         <span class="nobr">ending with $endmonthoptions
-               of <input type="text" name="endyear" size="5" value="$input{endyear}" />
-               </span>
-         <input type="submit" value="Go" />
-      </form>
-    ];
-    print include::standardoutput("Overview",
-                                  (join "\n", @calendar),
-                                  $ab, $input{usestyle});
+    my ($content, $title) = overview();
+    print include::standardoutput($title, $content, $ab, $input{usestyle});
     exit 0;
-
   } elsif ($input{view}) {
     # User wants to see the hour-by-hour schedule for certain resource(s).
     doview();
-  } elsif ($input{action} eq 'didyoumean') {
+  } elsif ($input{action} eq 'didyoumean') { # This is short enough to leave inline...
     my %booking = %{getrecord('resched_bookings', $input{booking})};
     $booking{id} or warn 'Taxes and Hot Fish Juice';
     my $bookedforastyped = $booking{bookedfor};
     $booking{bookedfor} = include::capitalise(include::dealias(include::normalisebookedfor($bookedforastyped)));
-    #if ((lc $booking{bookedfor}) ne (lc $bookedforastyped)) {
-    #  $booking{notes} = ($booking{notes} ? ($booking{notes} . "\n") : '') . encode_entities("($bookedforastyped)");
-    #}
     my @changes = @{updaterecord('resched_bookings', \%booking)};
     my %res = %{getrecord('resched_resources', $booking{resource})};
     my $when = DateTime::From::MySQL($booking{fromtime});
     print include::standardoutput('Booking Updated: ' . $booking{bookedfor},
                                   qq[<div class="info">The booking has been updated.</div>],
-                                  $ab,
-                                  $input{usestyle},
-                                  redirect_header(\%res, $when),
-                                 );
-  } elsif ($input{action} eq 'newbooking') {
-    # User wants to book a resource for a particular time.
-    my %res = %{getrecord('resched_resources', $input{resource})};
-    my %sch = %{getrecord('resched_schedules', $res{schedule})};
-    my $when = DateTime::From::MySQL($input{when});
-    my @when = ($when);
-    my $monthoptions = join "\n", map {
-      my $dt = DateTime->new( year  => 1970,
-                              month => $_,
-                              day   => 1);
-      my $abbr = $dt->month_abbr;
-      my $selected = ($_ == $when->month) ? ' selected="selected"' : '';
-      qq[<option value="$_"$selected>$abbr</option>];
-    } 1..12;
-
-    my $until = $when->clone()->add( minutes => $sch{durationmins} );
-    my $untilp;
-    if ($sch{durationlock}) {
-      $untilp = "Booking from ".(
-                                 include::twelvehourtime($when->hour() . ':' . sprintf "%02d", $when->minute())
-                                )." to ".(include::twelvehourtime($until->hour() . ":" . (sprintf "%02d", $until->minute())))." on ".($when->date());
-    } else {
-      my $hourselect = '<select name="untilhour">'.(include::houroptions($until->hour())).'</select>';
-      $untilp = "Booking from ".(
-                                 include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
-                                ).qq[ to
-          <span class="nobr">$hourselect<strong>:</strong><input type="text" name="untilmin" size="3" value="].($until->minute())
-            .qq[" /></span>\n          on ] . $when->date() . ".";
-    }
-
-    # Collision Detection:  What if it's already been booked?
-    my @collision = include::check_for_collision_using_datetimes($res{id}, $when, $when->clone()->add(minutes => $sch{intervalmins}));
-    if (@collision) {
-      my %extant = %{$collision[0]};
-      my %bookedby = %{getrecord('users', $extant{bookedby})};
-      print include::standardoutput("Collision: $res{name} already booked for $input{when}",
-                                    "<p class=\"error\">$res{name} is already booked for
-                                     $extant{bookedfor} (booked by $bookedby{nickname})
-                                     from $extant{fromtime} until $extant{until}.
-                                     </p>
-                                     <p><a href=\"./?booking=$extant{id}&amp;$persistentvars\">View
-                                        or edit the existing booking.</a></p>",
-                                    $ab, $input{usestyle});
-    } else {
-      my $when = DateTime::From::MySQL($input{when});
-      # No collision; let the user schedule the resource:
-      my $submit = '<div><input type="submit" value="Make it so." /></div>';
-      my ($roombookingfields, $notesheading, $submitbeforenotes, $submitafternotes) =
-        ( '',                 'Notes',       $submit,            '');
-      if (isroom($res{id})) {
-        # This is a room booking.
-        $notesheading = 'Contact Information (name, address, phone number) for Group Contact Person, and any other Notes';
-        ($submitbeforenotes, $submitafternotes) = ('', $submit);
-        my %value = map {
-          ($input{$_}) ? ( $_ => " value=\"$input{$_}\"") : ()
-        } qw(participants chairs tables anythingelse);
-        my %ischecked = map {
-          ($input{$_}) ? ( $_ => ' checked="checked"' ) : ()
-        } qw(coffee nuker fridge meal
-             podium dryboard
-             tv screen overhead slides projector);
-        $roombookingfields = <<"ROOMBOOKINGFIELDS";
-  <div class="roombooking">
-      <p>Number of Participants:  <input name="participants" type="text" size="4" $value{participants} /></p>
-      <div class="category">
-             <div><strong>Kitchen Use:</strong>
-               <span class="nobr"><input type="radio" name="kitchenuse" value="Yes" />Yes</span>
-               <span class="nobr"><input type="radio" name="kitchenuse" value="No" checked="checked" onClick="document.bookingform.coffee.checked=false; document.bookingform.nuker.checked=false; document.bookingform.fridge.checked=false; document.bookingform.meal.checked=false; " />No</span>
-               </div><div>&nbsp;</div>
-           <div>
-             <nobr class="rightpad"><input type="checkbox" name="coffee" onClick="document.bookingform.kitchenuse[0].checked=true;" />Coffee&nbsp;Pots</span>
-             <nobr class="rightpad"><input type="checkbox" name="nuker"  onClick="document.bookingform.kitchenuse[0].checked=true;" />Microwave</span>
-             <nobr class="rightpad"><input type="checkbox" name="fridge" onClick="document.bookingform.kitchenuse[0].checked=true;" />Refrigerator</span>
-                              <span class="nobr"><input type="checkbox" name="meal"   onClick="document.bookingform.kitchenuse[0].checked=true;" />Meal</span>
-           </div>
-      </div>
-      <div class="category"><div><strong>Equipment Requirements:</strong>
-               <span class="nobr"><input type="radio" name="ourequipment" value="Yes" />Yes (Our Equipment)</span>
-               <span class="nobr"><input type="radio" name="ourequipment" value="No" checked="checked" onClick="document.bookingform.chairs.value=0; document.bookingform.tables.value=0; document.bookingform.podium.checked=false; document.bookingform.dryboard.checked=false; document.bookingform.tv.checked=false; document.bookingform.screen.checked=false; document.bookingform.overhead.checked=false; document.bookingform.slides.checked=false; document.bookingform.projector.checked=false; document.bookingform.anythingelse.value='';" />No</span>
-             </div><div>&nbsp;</div>
-          <div><!-- Furniture -->
-             <nobr class="rightpad"># of Chairs: <input type="text" name="chairs" value="0" size="3" $value{chairs} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
-             <span class="nobr"># of Additional Tables:       <input type="text" name="tables" value="0" size="3" $value{tables} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
-                   <span class="nobr">(The four tables are always provided.)</span>
-          </div><div>&nbsp;</div>
-          <div>
-             <nobr class="rightpad"><input type="checkbox" name="podium" $ischecked{podium}  onClick="document.bookingform.ourequipment[0].checked=true;" />Podium</span>
-             <span class="nobr"><input type="checkbox" name="dryboard" $ischecked{dryboard} onClick="document.bookingform.ourequipment[0].checked=true;" />Dry Erase Board</span>
-          </div><div>&nbsp;</div>
-          <div><!-- A/V Stuff -->
-             <nobr class="rightpad"><input type="checkbox" name="tv"        $ischecked{tv}        onClick="document.bookingform.ourequipment[0].checked=true;" />TV/VCR</span>
-             <nobr class="rightpad"><input type="checkbox" name="screen"    $ischecked{screen}    onClick="document.bookingform.ourequipment[0].checked=true;" />Screen</span>
-             <nobr class="rightpad"><input type="checkbox" name="overhead"  $ischecked{overhead}  onClick="document.bookingform.ourequipment[0].checked=true;" />Overhead&nbsp;Projector</span>
-             <span class="nobr"><input                  type="checkbox" name="projector" $ischecked{projector} onClick="document.bookingform.ourequipment[0].checked=true;" />Projector for computer or VCR</span>
-          </div><div>&nbsp;</div>
-          <div>Anything Else? <input type="text" size="30" name="anythingelse" $value{anythingelse} onClick="document.bookingform.ourequipment[0].checked=true;" /></div>
-      </div>
-      <div class="category"><div><strong>Meeting Room Policy:</strong></div>
-           <div><input type="radio" name="policyhave" value="Yes" id="policyhaveyes" />
-                      <label for="policyhaveyes">Already have our policy on file.</label></div>
-           <div><input type="radio" name="policyhave" value="No" id="policyhavenot" checked="checked" />
-                      <label for="policyhavenot">Please send a copy</label>:
-                  <div style="margin-left: 2em;">
-                      <div><input type="checkbox" name="policysendemail" id="policysendemail" onClick="document.bookingform.policysendeddress.focus();"  />
-                           <label for="policysendemail">by email</label>
-                           <label for="policysendeddress">to this address</label>
-                           <input id="policysendeddress" type="text" name="policysendemailaddress" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[0].checked=true;" /></div>
-                      <div><input type="checkbox" name="policysendfax" id="policysendfax" onClick="document.bookingform.policysendfaxnum.focus();" />
-                           <label for="policysendfax">by fax</label>
-                           <label for="policysendfaxnum">to this number</label>
-                           <input id="policysendfaxnum" type="text" name="policysendfaxnumber" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[1].checked=true;" /></div>
-                      <div><input type="checkbox" name="policysendsnail" id="policysendsnail" onClick="document.bookingform.policysendusmaddress.focus();" />
-                           <label for="policysendsnail">by U.S. Mail</label>
-                           <label for="policysendusmaddress">to this address</label>
-                           <input id="policysendusmaddress" type="text" name="policysendmailingaddress" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[2].checked=true;" /></div>
-                  </div>
-                </div>
-      </div>
-  </div>
-ROOMBOOKINGFIELDS
-      }
-      my $combinerooms = '';
-      if ($res{combine}) {
-        my @r = map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine};
-        my $cr = join "\n        ", map {
-          my $r = $_;
-          qq[<div class="combiner"><input type="checkbox" id="combiner$$r{id}" name="combiner$$r{id}" />
-             <label for="combiner$$r{id}">$$r{name}</label></div>]
-        } @r;
-        $combinerooms = qq[<div class="p"><div><strong>Combine Rooms:</strong></div>
-        $cr
-       </div>];
-      }
-      print include::standardoutput("Booking $res{name} for $input{when}",
-                                    qq[
-       <form action="./" method="POST" name="bookingform" class="res$res{id}">
-       <div class="res$res{id}">
-       <!-- *** First, the stuff we already know: *** -->
-       <input type="hidden" name="action"    value="makebooking" />
-       <input type="hidden" name="when"      value="$input{when}" />
-       <input type="hidden" name="resource"  value="$input{resource}" />
-       <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-       <input type="hidden" name="useajax"   value="$input{useajax}" />
-       <p>Enter the name of the person or group who will be using the $res{name}:
-            <input type="text" name="bookedfor" size="50"></input></p>
-       <p>$untilp
-          <!-- We pick up bookedby from your login, which is $auth::user.  Log out and log in as a different user to change this. -->
-          initials:&nbsp;<input type="text" name="staffinitials" value="$input{staffinitials}" size="3" maxsize="20" />
-          </p>
-       $roombookingfields
-       $submitbeforenotes
-       <p><input type="checkbox" name="latestart" /> Started late at
-          <input type="text" size="3" name="latehour" />:<input type="text" size="3" name="lateminute"  />
-          <input type="button" value="Starting Late Right Now" onclick="
-              var f=document.bookingform;
-              var d = new Date();
-              var m = d.getMinutes();
-              if (m < 10) {
-                 m = '0'.concat(m);
-              }
-              f.latehour.value    = d.getHours();
-              f.lateminute.value  = m;
-              f.latestart.checked = 'checked';
-              " />
-          </p>
-       <p><div>$notesheading:</div><textarea name="notes" cols="50" rows="5"></textarea></p>
-       $submitafternotes
-       <hr />
-       <div class="p"><div><strong>Recurring Booking:</strong></div>
-          <div>Book this resource <select name="recur" id="recurformselect" onchange="changerecurform();">
-               <option value="">Just This Once</option>
-               <option value="daily">Daily</option>
-               <option value="weekly">Weekly (every ].$when->day_name.qq[)</option>
-               <option value="monthly">Monthly (on the ].ordinalnumber($when->mday).qq[)</option>
-               <option value="nthdow">Monthly (on the ].ordinalnumber(nonstandard_week_of_month($when))
-                                    # The first week of the month is the first week
-                                    # that contains a Thursday that is in that month.
-                                    # See the POD for DateTime.  See also ISO8601.
-                                    ." ".$when->day_name.qq[)</option>
-               <option value="quarterly">Quarterly (on the ].ordinalnumber($when->mday)
-                                    .qq[ of every third month)</option>
-               <option value="quarterlynthdow">Quarterly (on the ].ordinalnumber(nonstandard_week_of_month($when))
-                                    ." ".$when->day_name.qq[ of every third month)</option>
-               <option value="listed">on the dates listed below</option>
-               </select></div>
-               <span id="recurstyles" style="display: none;">
-                 <div><input type="radio" name="recurstyle" value="ntimes" checked="checked" id="BookTimesRadio" />Book
-                      <input type="text"  name="recurtimes" size="4" value="1" onchange="document.getElementById('BookTimesRadio').checked = 'checked';" /> time(s).</div>
-                 <div><input type="radio" name="recurstyle" value="until" id="BookThruRadio" />Book through
-                      <input type="text" name="recuruntilyear" size="6" value="].$when->year.qq[" onchange="document.getElementById('BookThruRadio').checked = 'checked';" />
-                      <select name="recuruntilmonth" onchange="document.getElementById('BookThruRadio').checked = 'checked';">].(join $/, map {
-                        my $dt = DateTime->new( year => 1974, month => $_ , day => 7);
-                        my $selected = (($dt->month() == $when->month())?qq[ selected="selected"]:"");
-                        (qq[<option value="$_"$selected>].($dt->month_name)."</option>")
-                      } 1 .. 12).qq[</select>
-                      <input type="text" name="recuruntilmday" value="].$when->mday.qq[" size="4" onchange="document.getElementById('BookThruRadio').checked = 'checked';" />.</div>
-               </span>
-               <span id="recurlist" style="display: none;">
-                   <table class="table"><thead>
-                       <tr><th>year</th><th>month</th><th>day</th></tr>
-                   </thead><tbody>
-                       <tr><td>].$when->year."</td><td>".$when->month_abbr."</td><td>".$when->mday.qq[</td></tr>
-                       <tr><td><input type="text" name="recurlistyear1" size="5" value="].$when->year.qq[" /></td>
-                           <td><select name="recurlistmonth1">$monthoptions</select></td>
-                           <td><input type="text" name="recurlistmday1" size="3" /></td>
-                       </tr>
-                       <tr id="insertmorelisteddateshere" />
-                   </tbody></table>
-                   <input type="button" value="Add Another Date" onclick= "augmentdatelist('].$when->year.qq[');"/>
-                   <p />
-               </span>
-       </div>
-       $combinerooms
-       $submit
-    </div></form>\n], $ab, $input{usestyle});
-    }
-    # ****************************************************************************************************************
+                                  $ab, $input{usestyle}, redirect_header(\%res, $when), );
+  } elsif ($input{action} eq 'newbooking') { # User wants to book a resource for a particular time.
+    my ($content, $title) = newbooking();
+    print include::standardoutput($title, $content, $ab, $input{usestyle});
   } elsif ($input{action} eq 'makebooking') {
-    my %res = %{getrecord('resched_resources', $input{resource})};
-    my %sch = %{getrecord('resched_schedules', $res{schedule})};
-    my @restobook = (\%res);
-    if ($res{combine}) {
-      for my $r (map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine}) {
-        push @restobook, $r if $input{"combiner$$r{id}"};
-      }
-    }
-    my $when = DateTime::From::MySQL($input{when});
-    my @when = ($when);
-    if ($input{recur} eq 'listed') {
-      for my $n (grep { $input{'recurlistmday'.$_} and $input{'recurlistyear'.$_} and $input{'recurlistmonth'.$_}
-                      } map { /recurlistmday(\d+)/; $1 } grep { /^recurlistmday/ } keys %input) {
-        push @when, DateTime->new(
-                                  year   => $input{'recurlistyear'.$n},
-                                  month  => $input{'recurlistmonth'.$n},
-                                  day    => $input{'recurlistmday'.$n},
-                                  hour   => $when->hour,
-                                  minute => $when->minute,
-                                 );
-      }
-    } elsif ($input{recur}) {
-      my $udt;
-      if ($input{recurstyle} eq 'until') {
-        $udt = DateTime->new(year  => $input{recuruntilyear},  month  => $input{recuruntilmonth},
-                             day   => $input{recuruntilmday},
-                             hour  => $when->hour,             minute => $when->minute);
-      }
-
-      my $next = nextrecur($when)->clone();
-      # TODO:  Study the logic of this while loop:
-      while (($input{recurstyle} eq 'ntimes') and (@when < $input{recurtimes})
-             or
-             (($input{recurstyle} eq 'until')  and (DateTime->compare($next, $udt) <= 0))) {
-        push @when, $next->clone();
-        $next = nextrecur($next)->clone();
-      }
-    }
-    if (isroom($res{id})) {
-      # It's a room we're booking.  First, make sure there are notes if required...
-      if ($res{requirenotes} and not $input{notes}) {
-        print include::standardoutput('Contact Information Missing',
-                                      'Please go back and fill in contact information for the group
-                                       contact person in the notes field.  Thanks.', $ab, $input{usestyle}) and exit 0;
-      }
-      # Plus there'll be all those extra form fields, which have to be added to the notes...
-      my $extranotes = "";
-      my ($participants) = $input{participants} =~ /(\d+)/;
-      $extranotes .= "$participants participants.\n" if $participants;
-      if ($input{kitchenuse} =~ /y/i) {
-        $extranotes .= "Kitchen.";
-        $extranotes .= "  Coffee."        if $input{coffee}; # My testing indicates these fields are set to "on" if true.
-        $extranotes .= "  Microwave."     if $input{nuker};
-        $extranotes .= "  Refrigerator."  if $input{fridge};
-        $extranotes .= "  Meal."          if $input{meal};
-        $extranotes .= "\n";
-      }
-      if ($input{ourequipment} =~ /y/i) {
-        $extranotes .= "Our Equipment:";
-        my ($chairs) = $input{chairs} =~ /(\d+)/;
-        $extranotes .= "  $chairs chairs."       if $chairs;
-        my ($tables) = $input{tables} =~ /(\d+)/;
-        $extranotes .= "  $tables extra tables." if $tables;
-        $extranotes .= "  Podium."               if $input{podium};
-        $extranotes .= "\n";
-        $extranotes .= "  Dry Erase Board."      if $input{dryboard};
-        $extranotes .= "  TV/VCR."               if $input{tv};
-        $extranotes .= "  Screen."               if $input{screen};
-        $extranotes .= "  Overhead."             if $input{overhead};
-        $extranotes .= "  Slides."               if $input{slides};
-        $extranotes .= "  Projector."            if $input{projector};
-        $extranotes .= "\nAdditional Equipment:  $input{anythingelse}" if $input{anythingelse};
-        $extranotes .= "\n";
-      }
-      if ('yes' eq lc $input{policyhave}) {
-        $extranotes .= "Already have a copy of our meeting room policy on file.\n";
-      } else {
-        if ($input{policysendemail}) {
-          my $eddress = encode_entities($input{policysendemailaddress});
-          $extranotes .= qq[Send meeting room policy by email to $eddress\n];
-        }
-        if ($input{policysendfax}) {
-          my $faxnum  = encode_entities($input{policysendfaxnumber});
-          $extranotes .= qq[Send meeting room policy by fax to $faxnum.\n];
-        }
-        if ($input{policysendsnail}) {
-          my $snail = encode_entities($input{policysendmailingaddress});
-          $extranotes .= qq[Send meeting room policy by U.S. Mail to $snail\n]
-        }
-      }
-      $input{notes} .= "\n==============================\n$extranotes";
-    }
-    my $redirect_header = redirect_header(\%res, $when);
-    my @booking_result = map {
-      my $w = $_;
-      map {
-        attemptbooking($_, \%sch, $w)
-      } @restobook;
-    } @when;
-    undef $redirect_header if $didyoumean_invoked;
-    if (@booking_result == 1 and $booking_result[0] =~ /class=.error./) {
-      undef $redirect_header;
-      my $uri = select_redirect(\%res, $when);
-      push @booking_result, qq[<div class="info">You may <a href="$uri">go back to the schedule</a> if you like.</div>];
-    }
-    print include::standardoutput('Booking Resource: ' . $res{name},
-                                  ('<div class="results"><strong>Booking Results:</strong><ul>'
-                                   . (join "\n", map { "<li>"
-                                                       . $_
-                                                       . "</li>" } @booking_result)
-                                   . '</ul></div>'
-                                  ),
-                                  $ab,
-                                  $input{usestyle},
-                                  $redirect_header
-                                 );
+    my ($content, $title, $redirect) = makebooking();
+    print include::standardoutput($title, $content, $ab, $input{usestyle}, $redirect);
   } elsif ($input{action} eq 'daysclosed') {
     if ($input{year1} and $input{month1} and $input{mday1}) {
-      my @dc;
-      for my $n (1..10) {
-        if ($input{'year'.$n} and $input{'month'.$n} and $input{'mday'.$n}) {
-          push @dc, DateTime->new(
-                                  year    => $input{'year'.$n},
-                                  month   => $input{'month'.$n},
-                                  day     => $input{'mday'.$n},
-                                  hour    => 8,
-                                 );
-        }}
-      $input{untilhour} = 20; $input{untilmin}  = 30;
-      my @resource = getrecord('resched_resources');
-      my @result = map { my $dt = $_;
-                         map { 
-                           my %s = %{getrecord('resched_schedules', $$_{schedule})};
-                           my $when = DateTime::From::MySQL($s{firsttime});
-                           attemptbooking($_, $$_{schedule}, $dt->clone()->set( hour => $when->hour, minute=> $when->minute ) );
-                         } @resource;
-                       } @dc;
-      print include::standardoutput('Marking Closed Dates',
-                                    (join "\n", @result),
-                                    $ab, $input{usestyle}, );
+      my ($content, $title) = markdaysclosed();
+      print include::standardoutput($title, $content, $ab, $input{usestyle});
     } else {
       print include::standardoutput('Mark Resources Unavailable for Closed Dates:',
-                                    daysclosedform(),
-                                    $ab,
-                                    $input{usestyle}, );
+                                    daysclosedform(), $ab, $input{usestyle}, );
     }
   } elsif ($input{booking}) {
     # User wants to view details of a specific booking.
-    my @bookinglisting;
-    push @bookinglisting, "<!-- Global Input Hash:  " . Dumper(\%input) . " -->\n" if $debug;
-    for (split /,\s*/, $input{booking}) {
-      if (/(\d+)/) {
-        my %b = %{getrecord('resched_bookings', $1)};
-        $b{id} or warn 'Tribbles and Warm Milk';
-        if ($input{action} eq 'changebooking') {
-          # First change the booking and push the change results onto @bookinglisting.
-          # The view/change stuff will follow below, being pushed on afterward.
-          my %newb = %{DateTime::NormaliseInput( +{ map { s/^booking_//; $_ => $input{"booking_$_"}
-                                                      } grep { /^booking_/ and not /late/ and not /doneearly/ } keys %input })};
-          $newb{bookedby}=$user{id}; $newb{id} = $b{id};
-          $newb{fromtime} = DateTime::Format::ForDB($newb{fromtime_datetime});
-          $newb{until}    = DateTime::Format::ForDB($newb{until_datetime});
-          if ($input{latestart}) {
-            warn "latestart has a value: $input{latestart}" if $debug;
-            $newb{latestart} = DateTime::Format::ForDB(DateTime->new(
-                                                                     year   => $newb{fromtime_datetime}->year,
-                                                                     month  => $newb{fromtime_datetime}->month,
-                                                                     day    => $newb{fromtime_datetime}->mday,
-                                                                     hour   => $input{booking_late_datetime_hour},
-                                                                     minute => $input{booking_late_datetime_minute},
-                                                                    ));
-          }
-          if ($input{doneearlycheckbox}) {
-            warn "doneearlycheckbox has a value: $input{doneearlycheckbox}" if $debug;
-            $newb{doneearly} = DateTime::Format::ForDB(DateTime->new(
-                                                                     year   => $newb{until_datetime}->year,
-                                                                     month  => $newb{until_datetime}->month,
-                                                                     day    => $newb{until_datetime}->mday,
-                                                                     hour   => $input{booking_doneearly_datetime_hour},
-                                                                     minute => $input{booking_doneearly_datetime_minute},
-                                                                    ));
-            if ($input{followupname}) {
-              my %fb;
-              if ($b{followedby}) {
-                %fb = %{getrecord('resched_bookings', $b{followedby})};
-              } else {
-                $fb{resource} = $b{resource};
-                $fb{isfollowup} = $b{id};
-              }
-              $fb{staffinitials} = $input{followupstaffinitials} || $fb{staffinitials} || $input{staffinitials} || $newb{staffinitials};
-              $fb{bookedfor} = include::dealias(include::normalisebookedfor($input{followupname}));
-              if ((lc $fb{bookedfor}) ne (lc $input{followupname})) {
-                $fb{notes} = ($fb{notes} ? ($fb{notes} . "\n") : '')
-                  . encode_entities("($input{followupname})");
-              }
-              $fb{bookedby} = $user{id};
-              $fb{until} = $newb{until}; $fb{fromtime} = $newb{doneearly};
-              if ($fb{id}) {
-                # Update extant followup:
-                my @changes = @{updaterecord('resched_bookings', \%fb)};
-                if (@changes) {
-                  push @bookinglisting, qq[<div class="info">The following changes were made to the
-                       <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>:<ul>
-                       ].(join "\n", map {
-                          qq[           <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- result: $$_[3] --></li>]
-                       } @changes).qq[</ul></div>];
-                } else {
-                  # No changes were made to the followup.
-                  push @bookinglisting, qq[<p class="info">No changes were made to the
-                        <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>.
-                        </p>];
-                }
-              } else {
-                # Add it new:
-                my $result = addrecord('resched_bookings', \%fb);
-                $newb{followedby} = $db::added_record_id;
-                push @bookinglisting, qq[<p class="info">Added <a href="./?booking=$newb{followedby}&amp;$persistentvars">followup booking</a><!-- Result: $result -->.</p>];
-              }}
-            # The changes to the main record will be made below,
-            # outside the if clause, because even if doneearly doesn't
-            # change, the other changes still must be made.
-          }
-
-          my @changes = @{updaterecord('resched_bookings', \%newb)};
-          if (@changes) {
-            push @bookinglisting, "<div class=\"info\">The following changes were made: <ul>" . (join $/, map {"<li>Changed $$_[0]
-              to ".encode_entities($$_[1])." (was ".encode_entities($$_[2]).")<!-- ".encode_entities($$_[3])." --></li>"} @changes) . "</ul></div>";
-          } elsif ($input{followupname}) {
-            push @bookinglisting, qq[<div class="info">No changes were made to the main booking.</div>];
-          } else {
-            push @bookinglisting, "<div class=\"error\">No changes were made!</div>";#@DateTime::NormaliseInput::Debug";
-            push @bookinglisting, "<!-- newb: $/".(join$/,map{"\t$_\t => $b{$_}"} keys %b)." -->" if $debug;
-          }
-          %b = %{getrecord('resched_bookings', $b{id})}; # Refresh the record, so we have it with the changes made.
-        }
-        my %r = %{getrecord('resched_resources', $b{resource})};
-        my %res = map { $_ => encode_entities($r{$_}) } keys %r;
-        # After the change (if there even was a change) we want to
-        # show the user a view/edit form:
-        my %ben = map { $_ => encode_entities($b{$_}) } keys %b;
-        my @alias = include::hasaliases($b{bookedfor});
-        my $aliasnote = (include::isalias(include::normalisebookedfor($b{bookedfor})))
-          ? qq[ <cite><a href="./?alias=$b{bookedfor}">This name is an alias</a> for <u>] . (include::capitalise(include::dealias(include::normalisebookedfor($b{bookedfor})))) . qq[</u>.</cite>]
-          : ((scalar @alias)
-             ? qq[ <cite><a href="./?alias=$b{bookedfor}">This name has ] . (scalar @alias) . qq[ aliases.</a></cite>]
-             : qq[ <cite><a href="./?action=newaliasfrm&amp;newalias=$b{bookedfor}">Make this name an alias.</a></cite>]
-            );
-        my (@switchwith, $switchwith);
-        if (not $b{isfollowup}) {
-          @switchwith = map {
-            my %sw = %{getrecord('resched_resources',$_)};
-            qq[<!-- $_ --><span class="nobr"><a href="./?action=switch&amp;id=$b{id}&amp;with=$sw{id}&amp;$persistentvars">$sw{name}</a></span>]
-          } split /,/, $res{switchwith};
-          if (@switchwith) {
-            $switchwith = "<div class=\"switchwith\">Switch With:  " . (join "\n              ", @switchwith) . "</div>";
-          }
-        }
-        my $noteslines = 2 + split /\n/, $ben{notes};  $noteslines = 3 if $noteslines < 3; $noteslines = 10 if $noteslines > 10;
-        #warn " latestart: '$b{latestart}'; fromtime: '$b{fromtime}'; ";
-        my $latedt = DateTime::From::MySQL( ($b{latestart} ? $b{latestart} : $b{fromtime}), undef, 'A');
-        my $fromdt = DateTime::From::MySQL( $b{fromtime}, undef, 'B');
-        my $untidt = DateTime::From::MySQL( $b{until}, undef, 'C');
-        my $earldt = DateTime::From::MySQL(($b{doneearly} ? $b{doneearly} : $b{until}),undef,'D');
-        my %fbyrec; %fbyrec = %{getrecord('resched_bookings', $b{followedby})} if $b{followedby};
-        my $ts = ((getvariable('resched', 'show_booking_timestamp')
-                   ? qq[ <span class="tsmod">last modified $b{tsmod}</span>]
-                   : ''));
-        push @bookinglisting, qq[<form action="./" method="post">
-           <input type="hidden" name="booking" value="$b{id}" />
-           <input type="hidden" name="action" value="changebooking" />
-           <input type="hidden" name="usestyle" value="$input{usestyle}" />
-           <input type="hidden" name="useajax" value="$input{useajax}" />
-           <table>
-              <col></col><col width="190px"></col><col></col>
-           <tbody>
-              <tr><td>Resource</td>
-                  <td colspan="2">$res{name}<input type="hidden" name="booking_resource" value="$b{resource}"></input>
-                      $switchwith
-                      </td></tr>
-              <tr><td>Booked For:</td><td colspan="2"><input type="text" name="booking_bookedfor" value="$ben{bookedfor}" size="30"></input>$aliasnote</td></tr>
-              <tr><td>Booked By:</td><td colspan="2">].(($user{id}==$b{bookedby})
-                                            ?"$user{nickname}<!-- $user{id} -->"
-                                            :"<del>$b{bookedby}</del> <ins>$user{id} ($user{nickname})</ins>"
-                                           ).qq[<input type="hidden" name="booking_bookedby" value="$user{id}"></input>
-                                          (initials:&nbsp;<input type="text" size="3" name="staffinitials" value="$b{staffinitials}" />) $ts
-                                     </td></tr>
-              <tr><td>From<sup><a href="#footnote1">1</a></sup>:</td>
-                  <td>].(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK'))."</td>
-                  <td><input type=\"checkbox\" name=\"latestart\" ".($b{latestart} ? ' checked="checked" ' : '')." />&nbsp;Started late at
-                      ".(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL'))."</td></tr>
-              <tr><td>Until<sup><a href=\"#footnote2\">2</a></sup>:</td>
-                  <td>".(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM'))."</td>
-                  <td><input type=\"checkbox\" name=\"doneearlycheckbox\" ".($b{doneearly}?' checked="checked" ' : '')." />&nbsp;Done early at
-                      ".(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN')).qq[
-                      Followed by: <input name="followupname" value="$fbyrec{bookedfor}" />
-                      <span class="nobr">Initials:<input name="followupstaffinitials" size="4" type="text" value="$fbyrec{staffinitials}" /></span>
-                      </td></tr>
-              <tr><td><input type="submit" value="Save Changes" /></td>
-                  <td></td>
-                  <td><a class="button" href="./?cancel=$b{id}&amp;$persistentvars">Cancel Booking</a></td></tr>
-              <tr><td>Notes:</td><td colspan="2"><textarea cols="50" rows="$noteslines" name="booking_notes">$ben{notes}</textarea></td></tr>
-           </tbody></table><!-- /table beth -->
-        </form>];
-      }
-    }
-    print include::standardoutput("Resource Scheduling:  Booking #$b{id}",
-                                  ((join $/, @bookinglisting)."<p class=\"info\"><a name=\"footnote1\"><strong>1</strong>:</a>
-                                    The <q>From</q> time is the beginning of the timeslot.  If they start partway through the timeslot, use the <q>Started late</q> setting.</p>
-                                    <p class=\"info\"><a name=\"footnote2\"><strong>2</strong>:</a>
-                                    The <q>Until</q> time is the time the resource is booked until.  If they finish early, use the <q>Done early</q> setting.</p>"),
-                                 $ab, $input{usestyle});
-
-    # ****************************************************************************************************************
+    my ($content, $title) = viewbooking();
+    print include::standardoutput($title, $content, $ab, $input{usestyle});
   } elsif ($input{doneearly}) {
     # We're marking a booking as finished early.  We may also be creating a new followup booking.
     my %ob = %{getrecord('resched_bookings', $input{doneearly})}; # Original Booking
@@ -842,16 +185,16 @@ ROOMBOOKINGFIELDS
                                  });
           push @result, "<!-- Add Result:  $result -->\n";
           $ob{followedby} = $db::added_record_id;
-          push @result, "<p class=\"info\"><a href=\"./?booking=$ob{followedby}&amp;$persistentvars\">View Followup Booking</a></p>";
+          push @result, qq[<p class="info"><a href="./?booking=$ob{followedby}&amp;$persistentvars">View Followup Booking</a></p>];
         }
       } # Now, actually change the main booking:
       my @changes = @{updaterecord('resched_bookings', \%ob)};
       if (@changes) {
-        unshift @result, "<p class=\"info\">The following changes were made:<ul>".
+        unshift @result, qq[<p class="info">The following changes were made:<ul>].
           (join $/, map{"       <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- result: $$_[3] --></li>"}@changes)
-          ."</ul></p><p class=\"info\"><a href=\"./?booking=$ob{id}&amp;$persistentvars\">View the updated main booking.</a></p>";
+          .qq[</ul></p><p class="info"><a href="./?booking=$ob{id}&amp;$persistentvars">View the updated main booking.</a></p>];
       } else {
-        unshift @result, "<p class=\"error\">No changes were made!</p>";
+        unshift @result, qq[<p class="error">No changes were made!</p>];
       }
       print include::standardoutput('Resource Scheduling: early finish recorded',
                                     "@result",
@@ -926,7 +269,7 @@ ROOMBOOKINGFIELDS
       $mainbook{resource} = $targetres{id};
       my @changes = @{updaterecord('resched_bookings', \%mainbook)};
       if (@changes) {
-        push @listing, "<p class=\"info\">The following changes were made<!-- to record $mainbook{id} -->:\n<ul>\n"
+        push @listing, qq[<p class="info">The following changes were made<!-- to record $mainbook{id} -->:\n<ul>\n]
           .(join$/,map{"             <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- $$_[3] --></li>"}@changes)
           ."</ul></p>";
       } else {
@@ -939,16 +282,15 @@ ROOMBOOKINGFIELDS
           $$tb{resource} = $mainres{id};
           my @changes = @{updaterecord('resched_bookings', $tb)};
           if (@changes) {
-            push @listing, "<p class=\"info\">The following changes were made<!-- to record $$tb{id} -->:\n<ul>\n"
+            push @listing, qq[<p class="info">The following changes were made<!-- to record $$tb{id} -->:\n<ul>\n]
               .(join$/,map{"             <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- $$_[3] --></li>"}@changes)
               ."</ul></p>";
           } else {
-            push @listing, "<p class=\"error\">No changes were made!"#<!-- ".encode_entities(Dumper($tb))." -->
-              ."</p>";
+            push @listing, qq[<p class="error">No changes were made!</p>];
           }
         }
       } else {
-        push @listing, "<p class=\"info\">The $mainres{name} is now unbooked (available) at $mainbook{fromtime}.</p>";
+        push @listing, qq[<p class="info">The $mainres{name} is now unbooked (available) at $mainbook{fromtime}.</p>];
       }
       print include::standardoutput("Resource Switched",
                                     (join $/, @listing),
@@ -956,10 +298,10 @@ ROOMBOOKINGFIELDS
     } else {
       my $sysadmin = getvariable('resched', 'sysadmin_name');
       print include::standardoutput('Error:  Cannot Switch To Resource $input{with}',
-                                    "<p class=\"error\">Weird Error:  Blue Tomatoes (ask $sysadmin)</p>
+                                    qq[<p class="error">Weird Error:  Blue Tomatoes (ask $sysadmin)</p>
                                      <!-- You said you wanted to switch Booking #$input{id}
                                      ($mainbook{bookedfor}) from resource $mainbook{resource} ($mainres{name})
-                                     to resource $input{with}, but there is no resource with id number $input{with}. -->",
+                                     to resource $input{with}, but there is no resource with id number $input{with}. -->],
                                     $ab, $input{usestyle});
     }
     # ****************************************************************************************************************
@@ -1002,13 +344,13 @@ ROOMBOOKINGFIELDS
       print include::standardoutput('Confirm Cancellation',
                                     ("<p>You are about to <strong>cancel</strong> the following:</p>" .
                                      (join $/, @cancellation) .
-                                     "<form action=\"./\" method=\"post\">
-                                    <input type=\"hidden\" name=\"action\" value=\"confirm\"></input>
-                                    <input type=\"hidden\" name=\"cancel\" value=\"$input{cancel}\"></input>
-                                    <input type=\"hidden\" name=\"usestyle\" value=\"$input{usestyle}\" />
-                                    <input type=\"hidden\" name=\"useajax\" value=\"$input{useajax}\" />
-                                    <input type=\"submit\" value=\"Confirm\"></input>
-                                    </form>"),
+                                     qq[<form action="./" method="post">
+                                    <input type="hidden" name="action" value="confirm"></input>
+                                    <input type="hidden" name="cancel" value="$input{cancel}"></input>
+                                    <input type="hidden" name="usestyle" value="$input{usestyle}" />
+                                    <input type="hidden" name="useajax" value="$input{useajax}" />
+                                    <input type="submit" value="Confirm"></input>
+                                    </form>]),
                                     $ab, $input{usestyle});
     }
   } elsif ($input{stats}) {
@@ -1149,12 +491,6 @@ ROOMBOOKINGFIELDS
         my $catname = shift @$cat;
         map { $_ => $catname } @$cat;
       } include::categories();
-#      (
-#                  15 => 'inet', 16 => 'inet', 17 => 'inet',  3 => 'inet',
-#                   4 => 'proc',  5 => 'proc',  6 => 'proc',  7 => 'proc',
-#                   8 => 'room',  9 => 'room', 10 => 'room',
-#                  11 => 'test', 12 => 'test', 13 => 'test', 14 => 'test',
-#                 );
     my @rescb = map {[$rescat{$$_{id}}, qq[<div><span class="nobr"><input type="checkbox" value="$$_{id}" name="view" />&nbsp;$$_{name}</span></div>]]} sort { $$a{id} <=> $$b{id} } @res;
     %rescat = ();
     for (@rescb) {
@@ -1181,8 +517,8 @@ ROOMBOOKINGFIELDS
        <td><p>Year:  <input type="text" name="year" value="$input{year}"></input></p>
            <p>Month: <select name="month">].(join $/, map {
              my $dt = DateTime->new( year => 1974, month => $_ , day => 15);
-             my $selected = (($input{month} == $dt->month())?" selected=\"selected\"":"");
-             ("<option value=\"$_\"$selected>".($dt->month_name)."</option>")
+             my $selected = (($input{month} == $dt->month())?' selected="selected"':"");
+             (qq[<option value="$_"$selected>].($dt->month_name)."</option>")
            } 1 .. 12).qq[</select></p>
            <p>Day(s): <input type="text" name="mday" value="$input{mday}"></input></p>
            <p>(For days, you can give a comma-separated list of
@@ -1206,6 +542,664 @@ ROOMBOOKINGFIELDS
 
 
 exit 0; # Subroutines follow.
+
+sub viewbooking {
+  # User wants to view details of a specific booking.
+  my @bookinglisting;
+  push @bookinglisting, "<!-- Global Input Hash:  " . Dumper(\%input) . " -->\n" if $debug;
+  for (split /,\s*/, $input{booking}) {
+    if (/(\d+)/) {
+      my %b = %{getrecord('resched_bookings', $1)};
+      $b{id} or warn 'Tribbles and Warm Milk (booking record has no id in viewbooking())';
+      if ($input{action} eq 'changebooking') {
+        # First change the booking and push the change results onto @bookinglisting.
+        # The view/change stuff will follow below, being pushed on afterward.
+        my %newb = %{DateTime::NormaliseInput( +{ map { s/^booking_//; $_ => $input{"booking_$_"}
+                                                      } grep { /^booking_/ and not /late/ and not /doneearly/ } keys %input })};
+        $newb{bookedby}=$user{id}; $newb{id} = $b{id};
+        $newb{fromtime} = DateTime::Format::ForDB($newb{fromtime_datetime});
+        $newb{until}    = DateTime::Format::ForDB($newb{until_datetime});
+        if ($input{latestart}) {
+          warn "latestart has a value: $input{latestart}" if $debug;
+          $newb{latestart} = DateTime::Format::ForDB(DateTime->new(
+                                                                   year   => $newb{fromtime_datetime}->year,
+                                                                   month  => $newb{fromtime_datetime}->month,
+                                                                   day    => $newb{fromtime_datetime}->mday,
+                                                                   hour   => $input{booking_late_datetime_hour},
+                                                                   minute => $input{booking_late_datetime_minute},
+                                                                  ));
+        }
+        if ($input{doneearlycheckbox}) {
+          warn "doneearlycheckbox has a value: $input{doneearlycheckbox}" if $debug;
+          $newb{doneearly} = DateTime::Format::ForDB(DateTime->new(
+                                                                   year   => $newb{until_datetime}->year,
+                                                                   month  => $newb{until_datetime}->month,
+                                                                   day    => $newb{until_datetime}->mday,
+                                                                   hour   => $input{booking_doneearly_datetime_hour},
+                                                                   minute => $input{booking_doneearly_datetime_minute},
+                                                                  ));
+          if ($input{followupname}) {
+            my %fb;
+            if ($b{followedby}) {
+              %fb = %{getrecord('resched_bookings', $b{followedby})};
+            } else {
+              $fb{resource} = $b{resource};
+              $fb{isfollowup} = $b{id};
+            }
+            $fb{staffinitials} = $input{followupstaffinitials} || $fb{staffinitials} || $input{staffinitials} || $newb{staffinitials};
+            $fb{bookedfor} = include::dealias(include::normalisebookedfor($input{followupname}));
+            if ((lc $fb{bookedfor}) ne (lc $input{followupname})) {
+              $fb{notes} = ($fb{notes} ? ($fb{notes} . "\n") : '')
+                . encode_entities("($input{followupname})");
+            }
+            $fb{bookedby} = $user{id};
+            $fb{until} = $newb{until}; $fb{fromtime} = $newb{doneearly};
+            if ($fb{id}) {
+              # Update extant followup:
+              my @changes = @{updaterecord('resched_bookings', \%fb)};
+              if (@changes) {
+                push @bookinglisting, qq[<div class="info">The following changes were made to the
+                       <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>:<ul>
+                       ].(join "\n", map {
+                         qq[           <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- result: $$_[3] --></li>]
+                       } @changes).qq[</ul></div>];
+              } else {
+                # No changes were made to the followup.
+                push @bookinglisting, qq[<p class="info">No changes were made to the
+                        <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>.
+                        </p>];
+              }
+            } else {
+              # Add it new:
+              my $result = addrecord('resched_bookings', \%fb);
+              $newb{followedby} = $db::added_record_id;
+              push @bookinglisting, qq[<p class="info">Added <a href="./?booking=$newb{followedby}&amp;$persistentvars">followup booking</a><!-- Result: $result -->.</p>];
+            }}
+          # The changes to the main record will be made below,
+          # outside the if clause, because even if doneearly doesn't
+          # change, the other changes still must be made.
+        }
+
+        my @changes = @{updaterecord('resched_bookings', \%newb)};
+        if (@changes) {
+          push @bookinglisting, qq[<div class="info">The following changes were made: <ul>] . (join $/, map {"<li>Changed $$_[0]
+              to ".encode_entities($$_[1])." (was ".encode_entities($$_[2]).")<!-- ".encode_entities($$_[3])." --></li>"} @changes) . "</ul></div>";
+        } elsif ($input{followupname}) {
+          push @bookinglisting, qq[<div class="info">No changes were made to the main booking.</div>];
+        } else {
+          push @bookinglisting, qq[<div class="error">No changes were made!</div>];#@DateTime::NormaliseInput::Debug";
+          push @bookinglisting, "<!-- newb: $/".(join$/,map{"\t$_\t => $b{$_}"} keys %b)." -->" if $debug;
+        }
+        %b = %{getrecord('resched_bookings', $b{id})}; # Refresh the record, so we have it with the changes made.
+      }
+      my %r = %{getrecord('resched_resources', $b{resource})};
+      my %res = map { $_ => encode_entities($r{$_}) } keys %r;
+      # After the change (if there even was a change) we want to
+      # show the user a view/edit form:
+      my %ben = map { $_ => encode_entities($b{$_}) } keys %b;
+      my @alias = include::hasaliases($b{bookedfor});
+      my $aliasnote = (include::isalias(include::normalisebookedfor($b{bookedfor})))
+        ? qq[ <cite><a href="./?alias=$b{bookedfor}">This name is an alias</a> for <u>] . (include::capitalise(include::dealias(include::normalisebookedfor($b{bookedfor})))) . qq[</u>.</cite>]
+        : ((scalar @alias)
+           ? qq[ <cite><a href="./?alias=$b{bookedfor}">This name has ] . (scalar @alias) . qq[ aliases.</a></cite>]
+           : qq[ <cite><a href="./?action=newaliasfrm&amp;newalias=$b{bookedfor}">Make this name an alias.</a></cite>]
+          );
+      my (@switchwith, $switchwith);
+      if (not $b{isfollowup}) {
+        @switchwith = map {
+          my %sw = %{getrecord('resched_resources',$_)};
+          qq[<!-- $_ --><span class="nobr"><a href="./?action=switch&amp;id=$b{id}&amp;with=$sw{id}&amp;$persistentvars">$sw{name}</a></span>]
+        } split /,/, $res{switchwith};
+        if (@switchwith) {
+          $switchwith = qq[<div class="switchwith">Switch With:  ] . (join "\n              ", @switchwith) . "</div>";
+        }
+      }
+      my $noteslines = 2 + split /\n/, $ben{notes};  $noteslines = 3 if $noteslines < 3; $noteslines = 10 if $noteslines > 10;
+      #warn " latestart: '$b{latestart}'; fromtime: '$b{fromtime}'; ";
+      my $latedt = DateTime::From::MySQL( ($b{latestart} ? $b{latestart} : $b{fromtime}), undef, 'A');
+      my $fromdt = DateTime::From::MySQL( $b{fromtime}, undef, 'B');
+      my $untidt = DateTime::From::MySQL( $b{until}, undef, 'C');
+      my $earldt = DateTime::From::MySQL(($b{doneearly} ? $b{doneearly} : $b{until}),undef,'D');
+      my %fbyrec; %fbyrec = %{getrecord('resched_bookings', $b{followedby})} if $b{followedby};
+      my $ts = ((getvariable('resched', 'show_booking_timestamp')
+                 ? qq[ <span class="tsmod">last modified $b{tsmod}</span>]
+                 : ''));
+      push @bookinglisting, qq[<form action="./" method="post">
+           <input type="hidden" name="booking" value="$b{id}" />
+           <input type="hidden" name="action" value="changebooking" />
+           <input type="hidden" name="usestyle" value="$input{usestyle}" />
+           <input type="hidden" name="useajax" value="$input{useajax}" />
+           <table>
+              <col></col><col width="190px"></col><col></col>
+           <tbody>
+              <tr><td>Resource</td>
+                  <td colspan="2">$res{name}<input type="hidden" name="booking_resource" value="$b{resource}"></input>
+                      $switchwith
+                      </td></tr>
+              <tr><td>Booked For:</td><td colspan="2"><input type="text" name="booking_bookedfor" value="$ben{bookedfor}" size="30"></input>$aliasnote</td></tr>
+              <tr><td>Booked By:</td><td colspan="2">].(($user{id}==$b{bookedby})
+                                            ?"$user{nickname}<!-- $user{id} -->"
+                                            :"<del>$b{bookedby}</del> <ins>$user{id} ($user{nickname})</ins>"
+                                           ).qq[<input type="hidden" name="booking_bookedby" value="$user{id}"></input>
+                                          (initials:&nbsp;<input type="text" size="3" name="staffinitials" value="$b{staffinitials}" />) $ts
+                                     </td></tr>
+              <tr><td>From<sup><a href="#footnote1">1</a></sup>:</td>
+                  <td>].(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK')).qq[</td>
+                  <td><input type="checkbox" name="latestart" ".($b{latestart} ? ' checked="checked" ' : '')." />&nbsp;Started late at
+                      ".(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL'))."</td></tr>
+              <tr><td>Until<sup><a href="#footnote2">2</a></sup>:</td>
+                  <td>".(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM'))."</td>
+                  <td><input type="checkbox" name="doneearlycheckbox" ].($b{doneearly}?' checked="checked" ' : '')." />&nbsp;Done early at
+                      ".(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN')).qq[
+                      Followed by: <input name="followupname" value="$fbyrec{bookedfor}" />
+                      <span class="nobr">Initials:<input name="followupstaffinitials" size="4" type="text" value="$fbyrec{staffinitials}" /></span>
+                      </td></tr>
+              <tr><td><input type="submit" value="Save Changes" /></td>
+                  <td></td>
+                  <td><a class="button" href="./?cancel=$b{id}&amp;$persistentvars">Cancel Booking</a></td></tr>
+              <tr><td>Notes:</td><td colspan="2"><textarea cols="50" rows="$noteslines" name="booking_notes">$ben{notes}</textarea></td></tr>
+           </tbody></table><!-- /table beth -->
+        </form>];
+    }
+  }
+  my $content = ((join "\n", @bookinglisting)
+                 .qq[<p class="info"><a name="footnote1"><strong>1</strong>:</a>
+                       The <q>From</q> time is the beginning of the timeslot.  If they start partway through the timeslot, use the <q>Started late</q> setting.</p>
+                       <p class="info"><a name="footnote2"><strong>2</strong>:</a>
+                       The <q>Until</q> time is the time the resource is booked until.  If they finish early, use the <q>Done early</q> setting.</p>]);
+  return ($content, "Resource Scheduling:  Booking #$input{booking}");
+}
+
+sub markdaysclosed {
+  my @dc;
+  for my $n (1..10) {
+    if ($input{'year'.$n} and $input{'month'.$n} and $input{'mday'.$n}) {
+      push @dc, DateTime->new(
+                              year    => $input{'year'.$n},
+                              month   => $input{'month'.$n},
+                              day     => $input{'mday'.$n},
+                              hour    => 8, # This gets overridden below, based on schedule.
+                             );
+    }}
+  $input{untilhour} = 20; $input{untilmin}  = 30; # TODO: closing times should NOT be hardcoded.
+  my @resource = getrecord('resched_resources');
+  my @result = map { my $dt = $_;
+                     map {
+                       my %s = %{getrecord('resched_schedules', $$_{schedule})};
+                       my $when = DateTime::From::MySQL($s{firsttime});
+                       attemptbooking($_, $$_{schedule}, $dt->clone()->set( hour => $when->hour, minute=> $when->minute ) );
+                     } @resource;
+                   } @dc;
+  my $content = join "\n", @result;
+  return ($content, 'Marking Closed Dates');
+}
+
+sub makebooking {
+  my %res = %{getrecord('resched_resources', $input{resource})};
+  my %sch = %{getrecord('resched_schedules', $res{schedule})};
+  my @restobook = (\%res);
+  if ($res{combine}) {
+    for my $r (map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine}) {
+      push @restobook, $r if $input{"combiner$$r{id}"};
+    }}
+  my $when = DateTime::From::MySQL($input{when});
+  my @when = ($when);
+  if ($input{recur} eq 'listed') {
+    for my $n (grep { $input{'recurlistmday'.$_} and $input{'recurlistyear'.$_} and $input{'recurlistmonth'.$_}
+                    } map { /recurlistmday(\d+)/; $1 } grep { /^recurlistmday/ } keys %input) {
+      push @when, DateTime->new(
+                                year   => $input{'recurlistyear'.$n},
+                                month  => $input{'recurlistmonth'.$n},
+                                day    => $input{'recurlistmday'.$n},
+                                hour   => $when->hour,
+                                minute => $when->minute,
+                               );
+    }
+  } elsif ($input{recur}) {
+    my $udt;
+    if ($input{recurstyle} eq 'until') {
+      $udt = DateTime->new(year  => $input{recuruntilyear},  month  => $input{recuruntilmonth},
+                           day   => $input{recuruntilmday},
+                           hour  => $when->hour,             minute => $when->minute);
+    }
+    my $next = nextrecur($when)->clone();
+    # TODO:  Study the logic of this while loop:
+    while (($input{recurstyle} eq 'ntimes') and (@when < $input{recurtimes})
+           or
+           (($input{recurstyle} eq 'until')  and (DateTime->compare($next, $udt) <= 0))) {
+      push @when, $next->clone();
+      $next = nextrecur($next)->clone();
+    }
+  }
+  if (isroom($res{id})) {
+    # It's a room we're booking.  First, make sure there are notes if required...
+    if ($res{requirenotes} and not $input{notes}) {
+      return ('Please go back and fill in contact information for the group contact person in the notes field.  Thanks.',
+              'Contact Information Missing', undef);
+    }
+    # Plus there'll be all those extra form fields, which have to be added to the notes:
+    $input{notes} .= "\n==============================\n" . assemble_extranotes();
+  }
+  my $redirect_header = redirect_header(\%res, $when); # tentatively
+  my @booking_result = map {
+    my $w = $_;
+    map {
+      attemptbooking($_, \%sch, $w)
+    } @restobook;
+  } @when;
+  undef $redirect_header if $didyoumean_invoked;
+  if (@booking_result == 1 and $booking_result[0] =~ /class=.error./) {
+    undef $redirect_header;
+    my $uri = select_redirect(\%res, $when);
+    push @booking_result, qq[<div class="info">You may <a href="$uri">go back to the schedule</a> if you like.</div>];
+  }
+  my $content = ('<div class="results"><strong>Booking Results:</strong><ul>'
+                 . (join "\n", map { "<li>" . $_ . "</li>" } @booking_result)
+                 . '</ul></div>'
+                );
+  return ($content, 'Booking Resource: ' . $res{name}, $redirect_header);
+}
+
+sub assemble_extranotes {
+  my $extranotes = "";
+  my ($participants) = $input{participants} =~ /(\d+)/;
+  $extranotes .= "$participants participants.\n" if $participants;
+  if ($input{kitchenuse} =~ /y/i) {
+    $extranotes .= "Kitchen.";
+    $extranotes .= "  Coffee."        if $input{coffee}; # My testing indicates these fields are set to "on" if true.
+    $extranotes .= "  Microwave."     if $input{nuker};
+    $extranotes .= "  Refrigerator."  if $input{fridge};
+    $extranotes .= "  Meal."          if $input{meal};
+    $extranotes .= "\n";
+  }
+  if ($input{ourequipment} =~ /y/i) {
+    $extranotes .= "Our Equipment:";
+    my ($chairs) = $input{chairs} =~ /(\d+)/;
+    $extranotes .= "  $chairs chairs."       if $chairs;
+    my ($tables) = $input{tables} =~ /(\d+)/;
+    $extranotes .= "  $tables extra tables." if $tables;
+    $extranotes .= "  Podium."               if $input{podium};
+    $extranotes .= "\n";
+    $extranotes .= "  Dry Erase Board."      if $input{dryboard};
+    $extranotes .= "  TV/VCR."               if $input{tv};
+    $extranotes .= "  Screen."               if $input{screen};
+    $extranotes .= "  Overhead."             if $input{overhead};
+    $extranotes .= "  Slides."               if $input{slides};
+    $extranotes .= "  Projector."            if $input{projector};
+    $extranotes .= "\nAdditional Equipment:  $input{anythingelse}" if $input{anythingelse};
+    $extranotes .= "\n";
+  }
+  if ('yes' eq lc $input{policyhave}) {
+    $extranotes .= "Already have a copy of our meeting room policy on file.\n";
+  } else {
+    if ($input{policysendemail}) {
+      my $eddress = encode_entities($input{policysendemailaddress});
+      $extranotes .= qq[Send meeting room policy by email to $eddress\n];
+    }
+    if ($input{policysendfax}) {
+      my $faxnum  = encode_entities($input{policysendfaxnumber});
+      $extranotes .= qq[Send meeting room policy by fax to $faxnum.\n];
+    }
+    if ($input{policysendsnail}) {
+      my $snail = encode_entities($input{policysendmailingaddress});
+      $extranotes .= qq[Send meeting room policy by U.S. Mail to $snail\n]
+    }}
+  return $extranotes;
+}
+
+sub newbooking {
+  # User wants to book a resource for a particular time.
+  my %res = %{getrecord('resched_resources', $input{resource})};
+  my %sch = %{getrecord('resched_schedules', $res{schedule})};
+  my $when = DateTime::From::MySQL($input{when});
+  my @when = ($when);
+  my $monthoptions = join "\n", map {
+    my $dt = DateTime->new( year  => 1970,
+                            month => $_,
+                            day   => 1);
+    my $abbr = $dt->month_abbr;
+    my $selected = ($_ == $when->month) ? ' selected="selected"' : '';
+    qq[<option value="$_"$selected>$abbr</option>];
+  } 1..12;
+
+  my $until = $when->clone()->add( minutes => $sch{durationmins} );
+  my $untilp;
+  if ($sch{durationlock}) {
+    $untilp = "Booking from ".(
+                               include::twelvehourtime($when->hour() . ':' . sprintf "%02d", $when->minute())
+                              )." to ".(include::twelvehourtime($until->hour() . ":" . (sprintf "%02d", $until->minute())))." on ".($when->date());
+  } else {
+    my $hourselect = '<select name="untilhour">'.(include::houroptions($until->hour())).'</select>';
+    $untilp = "Booking from ".(
+                               include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
+                              ).qq[ to
+          <span class="nobr">$hourselect<strong>:</strong><input type="text" name="untilmin" size="3" value="].($until->minute())
+            .qq[" /></span>\n          on ] . $when->date() . ".";
+  }
+
+  # Collision Detection:  What if it's already been booked?
+  my @collision = include::check_for_collision_using_datetimes($res{id}, $when, $when->clone()->add(minutes => $sch{intervalmins}));
+  if (@collision) {
+    my %extant = %{$collision[0]};
+    my %bookedby = %{getrecord('users', $extant{bookedby})};
+    return (qq[<p class="error">$res{name} is already booked for
+                                     $extant{bookedfor} (booked by $bookedby{nickname})
+                                     from $extant{fromtime} until $extant{until}.
+                                     </p>
+                                     <p><a href="./?booking=$extant{id}&amp;$persistentvars">View
+                                        or edit the existing booking.</a></p>],
+            "Collision: $res{name} already booked for $input{when}");
+  } else {
+    my $when = DateTime::From::MySQL($input{when});
+    # No collision; let the user schedule the resource:
+    my $submit = '<div><input type="submit" value="Make it so." /></div>';
+    my ($roombookingfields, $notesheading, $submitbeforenotes, $submitafternotes) =
+      ( '',                 'Notes',       $submit,            '');
+    if (isroom($res{id})) {
+      # This is a room booking.
+      $notesheading = 'Contact Information (name, address, phone number) for Group Contact Person, and any other Notes';
+      ($submitbeforenotes, $submitafternotes) = ('', $submit);
+      my %value = map {
+        ($input{$_}) ? ( $_ => qq[ value="$input{$_}"]) : ()
+      } qw(participants chairs tables anythingelse);
+      my %ischecked = map {
+        ($input{$_}) ? ( $_ => ' checked="checked"' ) : ()
+      } qw(coffee nuker fridge meal
+             podium dryboard
+             tv screen overhead slides projector);
+      $roombookingfields = qq[
+  <div class="roombooking">
+      <p>Number of Participants:  <input name="participants" type="text" size="4" $value{participants} /></p>
+      <div class="category">
+             <div><strong>Kitchen Use:</strong>
+               <span class="nobr"><input type="radio" name="kitchenuse" value="Yes" />Yes</span>
+               <span class="nobr"><input type="radio" name="kitchenuse" value="No" checked="checked" onClick="document.bookingform.coffee.checked=false; document.bookingform.nuker.checked=false; document.bookingform.fridge.checked=false; document.bookingform.meal.checked=false; " />No</span>
+               </div><div>&nbsp;</div>
+           <div>
+             <nobr class="rightpad"><input type="checkbox" name="coffee" onClick="document.bookingform.kitchenuse[0].checked=true;" />Coffee&nbsp;Pots</span>
+             <nobr class="rightpad"><input type="checkbox" name="nuker"  onClick="document.bookingform.kitchenuse[0].checked=true;" />Microwave</span>
+             <nobr class="rightpad"><input type="checkbox" name="fridge" onClick="document.bookingform.kitchenuse[0].checked=true;" />Refrigerator</span>
+                              <span class="nobr"><input type="checkbox" name="meal"   onClick="document.bookingform.kitchenuse[0].checked=true;" />Meal</span>
+           </div>
+      </div>
+      <div class="category"><div><strong>Equipment Requirements:</strong>
+               <span class="nobr"><input type="radio" name="ourequipment" value="Yes" />Yes (Our Equipment)</span>
+               <span class="nobr"><input type="radio" name="ourequipment" value="No" checked="checked" onClick="document.bookingform.chairs.value=0; document.bookingform.tables.value=0; document.bookingform.podium.checked=false; document.bookingform.dryboard.checked=false; document.bookingform.tv.checked=false; document.bookingform.screen.checked=false; document.bookingform.overhead.checked=false; document.bookingform.slides.checked=false; document.bookingform.projector.checked=false; document.bookingform.anythingelse.value='';" />No</span>
+             </div><div>&nbsp;</div>
+          <div><!-- Furniture -->
+             <nobr class="rightpad"># of Chairs: <input type="text" name="chairs" value="0" size="3" $value{chairs} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
+             <span class="nobr"># of Additional Tables:       <input type="text" name="tables" value="0" size="3" $value{tables} onClick="document.bookingform.ourequipment[0].checked=true;" /></span>
+                   <span class="nobr">(The four tables are always provided.)</span>
+          </div><div>&nbsp;</div>
+          <div>
+             <nobr class="rightpad"><input type="checkbox" name="podium" $ischecked{podium}  onClick="document.bookingform.ourequipment[0].checked=true;" />Podium</span>
+             <span class="nobr"><input type="checkbox" name="dryboard" $ischecked{dryboard} onClick="document.bookingform.ourequipment[0].checked=true;" />Dry Erase Board</span>
+          </div><div>&nbsp;</div>
+          <div><!-- A/V Stuff -->
+             <nobr class="rightpad"><input type="checkbox" name="tv"        $ischecked{tv}        onClick="document.bookingform.ourequipment[0].checked=true;" />TV/VCR</span>
+             <nobr class="rightpad"><input type="checkbox" name="screen"    $ischecked{screen}    onClick="document.bookingform.ourequipment[0].checked=true;" />Screen</span>
+             <nobr class="rightpad"><input type="checkbox" name="overhead"  $ischecked{overhead}  onClick="document.bookingform.ourequipment[0].checked=true;" />Overhead&nbsp;Projector</span>
+             <span class="nobr"><input                  type="checkbox" name="projector" $ischecked{projector} onClick="document.bookingform.ourequipment[0].checked=true;" />Projector for computer or VCR</span>
+          </div><div>&nbsp;</div>
+          <div>Anything Else? <input type="text" size="30" name="anythingelse" $value{anythingelse} onClick="document.bookingform.ourequipment[0].checked=true;" /></div>
+      </div>
+      <div class="category"><div><strong>Meeting Room Policy:</strong></div>
+           <div><input type="radio" name="policyhave" value="Yes" id="policyhaveyes" />
+                      <label for="policyhaveyes">Already have our policy on file.</label></div>
+           <div><input type="radio" name="policyhave" value="No" id="policyhavenot" checked="checked" />
+                      <label for="policyhavenot">Please send a copy</label>:
+                  <div style="margin-left: 2em;">
+                      <div><input type="checkbox" name="policysendemail" id="policysendemail" onClick="document.bookingform.policysendeddress.focus();"  />
+                           <label for="policysendemail">by email</label>
+                           <label for="policysendeddress">to this address</label>
+                           <input id="policysendeddress" type="text" name="policysendemailaddress" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[0].checked=true;" /></div>
+                      <div><input type="checkbox" name="policysendfax" id="policysendfax" onClick="document.bookingform.policysendfaxnum.focus();" />
+                           <label for="policysendfax">by fax</label>
+                           <label for="policysendfaxnum">to this number</label>
+                           <input id="policysendfaxnum" type="text" name="policysendfaxnumber" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[1].checked=true;" /></div>
+                      <div><input type="checkbox" name="policysendsnail" id="policysendsnail" onClick="document.bookingform.policysendusmaddress.focus();" />
+                           <label for="policysendsnail">by U.S. Mail</label>
+                           <label for="policysendusmaddress">to this address</label>
+                           <input id="policysendusmaddress" type="text" name="policysendmailingaddress" onFocus="document.bookingform.policyhave[1].checked=true; document.bookingform.policysend[2].checked=true;" /></div>
+                  </div>
+                </div>
+      </div>
+  </div>]
+    }
+    my $combinerooms = '';
+    if ($res{combine}) {
+      my @r = map { getrecord('resched_resources', $_) } split /,\s*/, $res{combine};
+      my $cr = join "\n        ", map {
+        my $r = $_;
+        qq[<div class="combiner"><input type="checkbox" id="combiner$$r{id}" name="combiner$$r{id}" />
+             <label for="combiner$$r{id}">$$r{name}</label></div>]
+      } @r;
+      $combinerooms = qq[<div class="p"><div><strong>Combine Rooms:</strong></div>
+        $cr
+       </div>];
+    }
+    return (qq[
+       <form action="./" method="POST" name="bookingform" class="res$res{id}">
+       <div class="res$res{id}">
+       <!-- *** First, the stuff we already know: *** -->
+       <input type="hidden" name="action"    value="makebooking" />
+       <input type="hidden" name="when"      value="$input{when}" />
+       <input type="hidden" name="resource"  value="$input{resource}" />
+       <input type="hidden" name="usestyle"  value="$input{usestyle}" />
+       <input type="hidden" name="useajax"   value="$input{useajax}" />
+       <p>Enter the name of the person or group who will be using the $res{name}:
+            <input type="text" name="bookedfor" size="50"></input></p>
+       <p>$untilp
+          <!-- We pick up bookedby from your login, which is $auth::user.  Log out and log in as a different user to change this. -->
+          initials:&nbsp;<input type="text" name="staffinitials" value="$input{staffinitials}" size="3" maxsize="20" />
+          </p>
+       $roombookingfields
+       $submitbeforenotes
+       <p><input type="checkbox" name="latestart" /> Started late at
+          <input type="text" size="3" name="latehour" />:<input type="text" size="3" name="lateminute"  />
+          <input type="button" value="Starting Late Right Now" onclick="
+              var f=document.bookingform;
+              var d = new Date();
+              var m = d.getMinutes();
+              if (m < 10) {
+                 m = '0'.concat(m);
+              }
+              f.latehour.value    = d.getHours();
+              f.lateminute.value  = m;
+              f.latestart.checked = 'checked';
+              " />
+          </p>
+       <p><div>$notesheading:</div><textarea name="notes" cols="50" rows="5"></textarea></p>
+       $submitafternotes
+       <hr />
+       <div class="p"><div><strong>Recurring Booking:</strong></div>
+          <div>Book this resource <select name="recur" id="recurformselect" onchange="changerecurform();">
+               <option value="">Just This Once</option>
+               <option value="daily">Daily</option>
+               <option value="weekly">Weekly (every ].$when->day_name.qq[)</option>
+               <option value="monthly">Monthly (on the ].ordinalnumber($when->mday).qq[)</option>
+               <option value="nthdow">Monthly (on the ].ordinalnumber(nonstandard_week_of_month($when))
+                                    ." ".$when->day_name.qq[)</option>
+               <option value="quarterly">Quarterly (on the ].ordinalnumber($when->mday)
+                                    .qq[ of every third month)</option>
+               <option value="quarterlynthdow">Quarterly (on the ].ordinalnumber(nonstandard_week_of_month($when))
+                                    ." ".$when->day_name.qq[ of every third month)</option>
+               <option value="listed">on the dates listed below</option>
+               </select></div>
+               <span id="recurstyles" style="display: none;">
+                 <div><input type="radio" name="recurstyle" value="ntimes" checked="checked" id="BookTimesRadio" />Book
+                      <input type="text"  name="recurtimes" size="4" value="1" onchange="document.getElementById('BookTimesRadio').checked = 'checked';" /> time(s).</div>
+                 <div><input type="radio" name="recurstyle" value="until" id="BookThruRadio" />Book through
+                      <input type="text" name="recuruntilyear" size="6" value="].$when->year.qq[" onchange="document.getElementById('BookThruRadio').checked = 'checked';" />
+                      <select name="recuruntilmonth" onchange="document.getElementById('BookThruRadio').checked = 'checked';">].(join $/, map {
+                        my $dt = DateTime->new( year => 1974, month => $_ , day => 7);
+                        my $selected = (($dt->month() == $when->month())?qq[ selected="selected"]:"");
+                        (qq[<option value="$_"$selected>].($dt->month_name)."</option>")
+                      } 1 .. 12).qq[</select>
+                      <input type="text" name="recuruntilmday" value="].$when->mday.qq[" size="4" onchange="document.getElementById('BookThruRadio').checked = 'checked';" />.</div>
+               </span>
+               <span id="recurlist" style="display: none;">
+                   <table class="table"><thead>
+                       <tr><th>year</th><th>month</th><th>day</th></tr>
+                   </thead><tbody>
+                       <tr><td>].$when->year."</td><td>".$when->month_abbr."</td><td>".$when->mday.qq[</td></tr>
+                       <tr><td><input type="text" name="recurlistyear1" size="5" value="].$when->year.qq[" /></td>
+                           <td><select name="recurlistmonth1">$monthoptions</select></td>
+                           <td><input type="text" name="recurlistmday1" size="3" /></td>
+                       </tr>
+                       <tr id="insertmorelisteddateshere" />
+                   </tbody></table>
+                   <input type="button" value="Add Another Date" onclick= "augmentdatelist('].$when->year.qq[');"/>
+                   <p />
+               </span>
+       </div>
+       $combinerooms
+       $submit
+    </div></form>\n],
+  "Booking $res{name} for $input{when}");
+  }}
+
+sub aliassearch {
+  my $alias = include::normalisebookedfor($input{alias});
+  {
+    my %a = map { $$_{id} => $_
+                } searchrecord('resched_alias', 'alias', $alias),
+                  searchrecord('resched_alias', 'canon', $alias);
+    @arec = map { $a{$_} } sort { $$a <=> $$b } keys %a;
+  }
+  if (not scalar @arec) {
+    return (qq[<div class="error">Sorry, but I couldn't find an alias
+                                         record for <q>$alias</q>.</div>],
+            "Alias Not Found: $alias");
+  } else {
+    my $content = join "\n<hr />\n", qq[<div>Names should be entered here in <q>normalized form</q>:
+                   <ul>
+                       <li>lowercase</li>
+                       <li>no punctuation</li>
+                       <li>first name first</li>
+                       <li>leave out any parenthesized marks (e.g., <q>(IN)</q> for internet policy)</li>
+                   </ul>
+              </div>], map {
+                my $arec = $_;
+                my $aliasenc = encode_entities($$arec{alias});
+                my $canonenc = encode_entities($$arec{canon});
+                my $anum = sprintf "%04d", $$arec{id};
+                my $editcontrols = ($input{action} eq 'editalias')
+                  ? qq[<input type="submit" value="Save Changes" />
+                       <!-- TODO: a class="button">Delete Alias</a -->]
+                  : qq[<br /><a class="button" href="./?action=editalias&amp;alias=$aliasenc">Edit</a>];
+                my $aliascontent = ($input{action} eq 'editalias')
+                  ? qq[<input type="text" size="30" name="alias" value="$aliasenc" />]
+                  : $aliasenc;
+                my $canoncontent = ($input{action} eq 'editalias')
+                  ? qq[<input type="text" size="30" name="canon" value="$canonenc" />]
+                  : $canonenc;
+                my $ilsname = getvariable('resched', 'ils_name');
+        qq[<form action="index.cgi" method="post">
+              <input type="hidden" name="aliasid" value="$$arec{id}" />
+              <input type="hidden" name="action" value="updatealias" />
+              <div><strong>Alias #$anum:</strong></div>
+              <table class="table alias"><tbody>
+                  <tr><th>Alias:</th><td>$aliascontent</td></tr>
+                  <tr><th><div>Canonical Name:</div>
+                          (as spelled in $ilsname)</th>
+                      <td>$canoncontent</td></tr>
+              </tbody></table>
+              $editcontrols
+           </form>]
+      } @arec;
+    return ($content, "Alias: $alias");
+  }}
+
+sub overview {
+  # User wants to just see a broad overview for certain resource(s).
+  my @res = split /,\s*/, $input{overview};
+  my %res;
+  for my $id (@res) {
+    $res{$id} =
+      {
+       %{getrecord('resched_resources', $id)}
+      };
+  }
+  my %sch = map { $_ => scalar getrecord('resched_schedules', $_) } uniq map { $res{$_}{schedule} } @res;
+  my @calendar;
+  for (qw(startyear startmonth startmday endyear endmonth endmday)) {
+    ($input{$_}) = $input{$_} =~ /(\d+)/;
+  }
+  $input{endyear} ||= $input{startyear};
+  $input{endmonth} ||= $input{startmonth};
+  my $begdt = DateTime->new(
+                            year  => $input{startyear},
+                            month => $input{startmonth},
+                            day   => ($input{startmday} || 1),
+                           );
+  my $enddt = DateTime->new(
+                            year   => $input{endyear},
+                            month  => $input{endmonth},
+                            day    => ($input{endmday} ||
+                                       last_mday_of_month(year   => $input{endyear},
+                                                          month  => $input{endmonth})),
+                            #hour   => 23, # i.e., _after_ the dt that starts this day, but before the next day.
+                           );
+  my $monthdt = $begdt->clone();
+  my $dt = $monthdt->clone();
+
+  push @calendar, qq[<!-- begdt: $begdt; enddt: $enddt -->
+      <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
+        <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+        <tbody><tr>];
+  if ($dt->wday > 1) { push @calendar, (qq[<td></td>] x ($dt->wday - 1)); }
+  while ($dt <= $enddt) {
+    if ($dt->wday == 7) {
+      # We don't do Sunday, but we do wrap around to the next week.
+      push @calendar, qq[</tr>\n<tr>];
+    } else {
+      my @b = overview_get_day_bookings($dt, @res);
+      my ($y, $mon, $mday) = ($dt->year, $dt->month, $dt->mday);
+      push @calendar, qq[<td><div class="calmdaynum"><a href="./?view=].(join ",", @res).qq[&amp;mday=$mday&amp;year=$y&amp;month=$mon&amp;$persistentvars">$mday</a></div>].
+        ((@b) ? (join "\n", map {
+          my $ftime = include::twelvehourtimefromdt(DateTime::From::MySQL($$_{fromtime}));
+          my $utime = include::twelvehourtimefromdt(DateTime::From::MySQL($$_{until}));
+          "<div>".(@res>1 ? qq[<span class="calresname">$res{$$_{resource}}{name}:</span>] : '')
+            .qq[ <a href="./?booking=$$_{id}&amp;$persistentvars">$$_{bookedfor}</a> ($ftime - $utime)</div>]
+          } @b) : '<p class="calemptyday">&nbsp;</p>' )
+          .qq[</td>];
+    }
+    # Now, increment the dt and check for month changeover.
+    $dt = $dt->add(days => 1);
+    if (($dt->month ne $monthdt->month) or $dt > $enddt) {
+      if ($dt < $enddt) {
+        push @calendar, qq[</tr></tbody></table>
+          <p class="calmonthtransition" />
+          <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
+          <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+          <tbody><tr>] . join "", map {'<td></td>'} 1..($dt->dow - 1);
+        $monthdt = $dt->clone();
+      } else {
+        push @calendar, qq[</tr></tbody></table>\n    <p class="calmonthtransition" />];
+      }
+    }
+  }
+  my %monabbr = ( 1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Aug', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dec');
+  my $startmonthoptions = include::optionlist('startmonth', \%monabbr, $begdt->month);
+  my $endmonthoptions   = include::optionlist('endmonth', \%monabbr, $enddt->month);
+  push @calendar, qq[
+    <form class="nav" action="index.cgi" method="get">Get overview
+         <input type="hidden" name="overview" value="$input{overview}" />
+         <input type="hidden" name="usestyle" value="$input{usestyle}" />
+         <input type="hidden" name="useajax" value="$input{useajax}" />
+         <span class="nobr">starting from $startmonthoptions
+               of <input type="text" name="startyear" size="5" value="$input{startyear}" />
+               </span>
+           and
+         <span class="nobr">ending with $endmonthoptions
+               of <input type="text" name="endyear" size="5" value="$input{endyear}" />
+               </span>
+         <input type="submit" value="Go" />
+      </form>
+    ];
+  return ((join "\n", @calendar), "Overview");
+}
 
 sub doview {
   # User wants to see the hour-by-hour schedule for certain resource(s).
@@ -1404,7 +1398,8 @@ sub doview {
         # But, what timeslots are we taking up, then?
         my $msm = ((60*$fromtime->hour())+$fromtime->min()); # minutes since midnight.
         my $msb = $msm - $tablestarttime; # minutes since beginning time of table.
-        my $ts = ($msb / $gcf);
+        my $ts = $msb / $gcf;
+        $ts = 0 if $ts < 0;
         #use Data::Dumper; warn Dumper(+{ fromtime => $fromtime->hms(), msm => $msm, msb => $msb, ts => $ts });
 
         # So, how many timeslots long is this booking?
@@ -1422,8 +1417,13 @@ sub doview {
         my $durmins = $duration->minutes + (60*$duration->hours) + (int ($duration->seconds / 60));
         my $durts = int (0.75 + ($durmins / $gcf)); # duration in number of timeslots.
         #use Data::Dumper(); warn Dumper(+{ durmins => $durmins, durts => $durts });
-        for (1 .. ($durts-1)) { # timeslot 0 is the one we already marked, for a total of $durts slots.
-          $$c{tscont}[$ts+$_] = 1;
+        for my $i (1 .. ($durts-1)) { # timeslot 0 is the one we already marked, for a total of $durts slots.
+          #warn "ts $ts and i $i\n";
+          if (($ts + $i) >= 0) {
+            $$c{tscont}[$ts+$i] = 1;
+          } else {
+            warn "Mass Hysteria: ts $ts and i $i";
+          }
         }
 
         # We can't make the td element yet, because we don't know the
@@ -1731,16 +1731,16 @@ sub gatherstats {
   my $hrd = human_readable_duration($dur);
   my $prevstart = $startstats - $dur;
   my $nextend = $endstats + $dur;
-  my $prevlink = "<a href=\"./?stats=custom"
+  my $prevlink = '<a href="./?stats=custom'
     . "&amp;startyear="  . $prevstart->year()  . "&amp;endyear="  . $startstats->year()
     . "&amp;startmonth=" . $prevstart->month() . "&amp;endmonth=" . $startstats->month()
     . "&amp;startmday="  . $prevstart->mday()  . "&amp;endmday="  . $startstats->mday()
-    . "&amp;$persistentvars\">&lt;= previous $hrd</a>";
-  my $nextlink = "<a href=\"./?stats=custom"
+    . qq[&amp;$persistentvars">&lt;= previous $hrd</a>];
+  my $nextlink = '<a href="./?stats=custom'
     . "&amp;startyear="  . $endstats->year()  . "&amp;endyear="  . $nextend->year()
     . "&amp;startmonth=" . $endstats->month() . "&amp;endmonth=" . $nextend->month()
     . "&amp;startmday="  . $endstats->mday()  . "&amp;endmday="  . $nextend->mday()
-    . "&amp;$persistentvars\">next $hrd =&gt;</a>";
+    . qq[&amp;$persistentvars">next $hrd =&gt;</a>];
   print include::standardoutput('Usage Statistics',
                                 qq[<div><strong>Gathering Usage Statistics</strong></div>
        <div><strong>Starting at 12:01 am on ] . $startstats->ymd() . qq[</strong></div>
@@ -1817,16 +1817,16 @@ sub getstatsforadaterange {
       }
       my $durinhours = (ref $totalduration ? $totalduration->in_units('hours') : '0');
       $totalbookings ||= 0;
-      push @gatheredstat, "<tr><td>$r{name}:</td>
-              <td class=\"numeric\">$totalbookings bookings</td>
-              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr>\n";
+      push @gatheredstat, qq[<tr><td>$r{name}:</td>
+              <td class="numeric">$totalbookings bookings</td>
+              <td> totalling</td><td class="numeric">$durinhours hours.</td></tr>\n];
       $totaltotalbookings += $totalbookings;
       $totaltotalduration = (ref $totaltotalduration ? $totaltotalduration + $totalduration : $totalduration);
     }
     my $durinhours = (ref $totaltotalduration ? $totaltotalduration->in_units('hours') : '0');
-    push @gatheredstat, "<tr><td><strong>Subtotal:</strong></td>
-              <td class=\"numeric\">$totaltotalbookings bookings</td>
-              <td> totalling</td><td class=\"numeric\">$durinhours hours.</td></tr></table>\n";
+    push @gatheredstat, qq[<tr><td><strong>Subtotal:</strong></td>
+              <td class="numeric">$totaltotalbookings bookings</td>
+              <td> totalling</td><td class="numeric">$durinhours hours.</td></tr></table>\n];
   }
   return @gatheredstat;
 }
@@ -2049,12 +2049,11 @@ sub isroom {
   return $resourceid if $$res{flags} =~ /R/;
 }
 
-
 sub redirect_header {
   my ($r, $when, $seconds) = @_;
   return unless ref $when;
   return if $input{recur};
-  $seconds ||= 3;
+  $seconds ||= getvariable('resched', 'redirect_seconds') || 15;
   my $uri = select_redirect($r, $when);
   return qq[<meta http-equiv="refresh" content="$seconds; URL=$uri" />];
 }
@@ -2184,14 +2183,18 @@ sub nonstandard_week_of_month {
   # based on the ICU definition of 'week of month', wherein the first
   # week of the month is the first week that contains a Thursday in
   # that month, correlating with the ISO8601 definition of what
-  # constitutes the first week of the year.  This is all quite
-  # irrelevant to us: when we want to know whether a day is the nth
-  # somethingday of the month, what we're really asking is whether, of
-  # the days in the month that are somethingdays, this day is
-  # chronologically the nth one.  For this we define our own custom
-  # function, which will work by counting somethingdays, going
-  # backwards seven days at a time, until it hits one that's not in
-  # the right month anymore.
+  # constitutes the first week of the year.  (If the first week of a
+  # month were defined differently, then you could have a week that is
+  # in year A but the month containing it might be in year A+1 or A-1,
+  # which would be exceedingly bizarre.)
+
+  # That however is all quite irrelevant to us: when we want to know
+  # whether a day is the nth somethingday of the month, what we're
+  # really asking is whether, of the days in the month that are
+  # somethingdays, this day is chronologically the nth one.  For this
+  # we define our own custom function, which will work by counting
+  # somethingdays, going backwards seven days at a time, until it hits
+  # one that's not in the right month anymore.
   my ($dt) = @_;
   $dt = $dt->clone();
   my $month = $dt->month;
@@ -2254,27 +2257,27 @@ sub attemptbooking {
       my %extant = %$_;
       my $inits = ($extant{staffinitials} ? " [$extant{staffinitials}]" : '');
       my %bookedby = %{getrecord('users', $extant{bookedby})};
-      "<div class=\"error\">$res{name} is already booked for
+      qq[<div class="error">$res{name} is already booked for
           $extant{bookedfor} (booked by $bookedby{nickname}$inits)
           from $extant{fromtime} until $extant{until}.
-          (<a href=\"./?booking=$extant{id}&amp;$persistentvars\">View
-           or edit the existing booking.</a>)</div>";
+          (<a href="./?booking=$extant{id}&amp;$persistentvars">View
+           or edit the existing booking.</a>)</div>];
     } @collision;
   } elsif ($when->dow == 7) {
-    return "<div class=\"error\">The ".ordinalnumber($when->mday)." of ".$when->month_name."
+    return '<div class="error">The '.ordinalnumber($when->mday)." of ".$when->month_name."
             falls on a ".($when->day_name)." in ".$when->year.".  $res{name} not booked.</div>";
   } elsif ($res{requireinitials} and not $input{staffinitials}) {
-    return "<div class=\"error\">Staff initials are required to book this resource.
-            Please go back and fill in your initials.  Thanks.</div>";
+    return '<div class="error">Staff initials are required to book this resource.
+            Please go back and fill in your initials.  Thanks.</div>';
   } elsif ($res{requirenotes} and not $input{notes}) {
-    return "<div class=\"error\">Notes are required to book this resource.  Please
+    return '<div class="error">Notes are required to book this resource.  Please
              go back and fill in contact information and any other relevant notes.
-             Thanks.</div>";
+             Thanks.</div>';
   } elsif ($input{latestart} and (
                                   (not $input{latehour})
                                   or (not $input{lateminute})
                                  )) {
-    return "<div class=\"error\">You said they started late, but you didn't say when.  Please fill out both the hour and minute fields.</div>";
+    return qq[<div class="error">You said they started late, but you didn't say when.  Please fill out both the hour and minute fields.</div>];
   } else {
     my $fromtime = DateTime::Format::ForDB($when);
     my $bookedfor = encode_entities(include::dealias(include::normalisebookedfor($input{bookedfor})));

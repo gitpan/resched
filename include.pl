@@ -117,7 +117,7 @@ sub standardoutput {
   my ($title, $content, $ab, $style, $meta, $favicon) = @_;
   my $cws = contentwithsidebar($content, "$ab\n".main::usersidebar());
   my $css = include::style($style);
-  $favicon ||= 'resched.ico';
+  $favicon ||= main::getvariable('resched', 'bookmark_icon') || 'resched.ico';
   return qq[Content-type: $include::content_type\n$auth::cookie
 
 $include::doctype
@@ -125,7 +125,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.8.3 vintage 2012 May 31. -->
+   <!-- resched version 0.8.5 vintage 2012 June 11. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />
@@ -199,11 +199,11 @@ sub houroptions {
       my $val = $_;
       my $hour = ($val <= 12) ? ("$val"."am") : (($val-12)."pm");
       my $selected = ($_ == $selectedhour) ? ' selected="selected"' : '';
-      "<option value=\"$val\"$selected>$hour</option>"
+      qq[<option value="$val"$selected>$hour</option>]
     } 8..20;
 }
 
-our $doctype = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">";
+our $doctype = qq[<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">];
 our $content_type = "text/html";
 
 sub include::check_for_collision_using_datetimes {
