@@ -39,6 +39,13 @@ if (not ($usesalt =~ /n/)) {
 warn "Hash without salt: " . md5_base64($password) . "\n";
 warn "Hash with salt:    " . md5_base64($password . $salt) . "\n";
 $$userrec{hashedpass} = md5_base64($password . $salt);
+
+my $flags = '';
+my $admin = getinput("Do you want this user to have administrative privileges,
+   for editing schedules and resources and users?");
+if (($admin =~ m/y/i) and not ($admin =~ m/n/i)) { $flags .= 'A'; }
+
+$$userrec{flags} = $flags;
 use Data::Dumper; warn Dumper($userrec);
 addrecord('users', $userrec);
 

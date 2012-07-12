@@ -83,9 +83,28 @@ sub dealias {
 }
 
 sub normalisebookedfor {
-  my ($rawname) = @_;
+  my ($rawname, $order) = @_;
+  #warn "Normalizing with order $order";
   my $normalname = lc $rawname;
-  if ($normalname =~ /(.+)[,]\s*(.+)/) { $normalname = "$2 $1"; }
+  my ($given, $surname, $suffix, $oldorder);
+  if ($normalname =~ /(.+)[,]\s*(.+)\s*\b(ii|iii|iv|vi|vii|viii|jr|esq)?$/) {
+    ($surname, $given, $suffix, $oldorder) = ($1, $2, $3, 1);
+  } elsif ($normalname =~ /(.*?)\s+(\w+)\s*\b(ii|iii|iv|vi|vii|viii|jr|esq)?$/) {
+    ($given, $surname, $suffix, $oldorder) = ($1, $2, $3, 0);
+  } else {
+    # If all else fails, just treat the whole thing as a surname:
+    ($surname, $given, $suffix) = ($normalname, '', '')
+  }
+  $order = (main::getvariable('resched', 'normal_name_order') || 0) if not defined $order;
+  if ($order == 1) { # Smith, James W Jr
+    my $rest = join " ", $given, $suffix;
+    $normalname = join ", ", $surname, $rest;
+  } elsif ($order == 2) { # Eastern order, no comma
+    $normalname = join " ", $surname, $given, $suffix;
+  } else { # Default to normal Western order.
+    $normalname = join " ", $given, $surname, $suffix;
+  }
+  #use Data::Dumper; warn Dumper(+{ surname => $surname, given => $given, suffix => $suffix, oldorder => $oldorder, order => $order, partially_normalised => $normalname });
   $normalname = sitecode::normalisebookedfor($normalname);
   $normalname =~ s/\s+/ /g;
   $normalname =~ s/[.]//g;
@@ -110,6 +129,30 @@ sub capitalise {
   return join " ", @part;
 }
 
+sub main::persist {
+  my ($hidden, $skip) = @_;
+  my %skip = map { $_ => 1 } @$skip;
+  my $vars = '';
+  for my $v (grep { not $skip{$_} } qw(usestyle useajax category magicdate)) {
+    if ($main::input{$v}) {
+      if ($hidden) {
+        $vars .= qq[\n         <input type="hidden" name="$v"   value="$main::input{$v}" />];
+      } else {
+        if ($vars) {
+          $vars .= qq[&amp;$v=$main::input{$v}];
+        } else {
+          $vars = qq[$v=$main::input{$v}];
+        }
+      }}}
+  return $vars;
+}
+
+sub errordiv {
+  my ($title, $details) = @_;
+  return qq[<div class="error"><div><strong>$title</strong></div>
+     $details</div>];
+}
+
 sub standardoutput {
   # This returns the complete http headers and the html
   # calling code must define sub main::usersidebar that
@@ -125,7 +168,7 @@ $include::doctype
 <head>
    <!-- This page is served by resched, the Resource Scheduling tool. -->
    <!-- Created by Nathan Eady for Galion Public Library.  -->
-   <!-- resched version 0.8.5 vintage 2012 June 11. -->
+   <!-- resched version 0.8.8 vintage 2012 July 12. -->
    <!-- See http://cgi.galion.lib.oh.us/staff/resched-public/ -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />
@@ -192,15 +235,50 @@ sub optionlist {
   return $list;
 }
 
+sub parseopenorclosetimes {
+  my ($spec) = @_;
+  my %t;
+  for my $dayspec (split /,/, ($spec)) {
+    my ($n, $hour, $min) = $dayspec =~ m/(\d+(?:-\d+)?)[:](\d+)[.:]?(\d*)/;
+    #warn "for day $n, closing time is $hour:$min";
+    if ($n =~ m/(\d+)\D+(\d+)/) {
+      my ($from, $to) = ($1, $2);
+      #warn "from $from to $to";
+      for my $m ($from .. $to) {
+        $t{$m} = [$hour, $min];
+      }
+    } else {
+      $t{$n} = [$hour, $min];
+    }}
+  if (wantarray) {
+    return %t;
+  }
+  return \%t;
+}
+
+sub openingtimes {
+  return parseopenorclosetimes(main::getvariable('resched', 'openingtimes') || '0-7:9:0');
+}
+
+sub closingtimes {
+  return parseopenorclosetimes(
+                               main::getvariable('resched', 'closingtimes')
+                               || '0:12.00,1-2:20:00,3:15:00,4-5:20:00,6:15:00');
+}
+
 sub houroptions {
-  my ($selectedhour) = @_;
+  my ($selectedhour, $dow) = @_;
+  carp "houroptions called without day of week" if not $dow;
+  $dow ||= 1; # Default is to supply Monday's times.  Why?  Because.
+  my %ot = openingtimes();
+  my %ct = closingtimes();
   return join "\n            ",
     map {
       my $val = $_;
       my $hour = ($val <= 12) ? ("$val"."am") : (($val-12)."pm");
       my $selected = ($_ == $selectedhour) ? ' selected="selected"' : '';
       qq[<option value="$val"$selected>$hour</option>]
-    } 8..20;
+    } ($ot{$dow}[0] || 9) .. ($ct{$dow}[0] || 20);
 }
 
 our $doctype = qq[<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">];

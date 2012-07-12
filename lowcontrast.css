@@ -268,34 +268,30 @@ code {
   font-family:         "Bitstream Vera Sans Mono", "Lucida Console", "Andale Mono", "Consolas", monospace;
 }
 
+div#programnotes {
+  background-color:    #99AAAA;
+  border:              2px outset #99AAAA;
+  padding:             0.5em;
+  text-align:          center;
+  margin:              0.5em;
+}
+
 .res3,
 td.content > form.res3
 { /* CR internet */
 /*  background-color:     #FFFF7F; */
   background-color:     #DDDDAF;
 }
-.res15,
-td.content > form.res15
-{ /* LP internet */
-  background-color:     #AA99CC;
-}
-.res16, .res17,
-td.content > form.res16,
-td.content > form.res17
-{ /* left and right internet */
-  background-color:     #7F99CC;
-}
-
-.res6,
-td.content > form.res6
-{ /* CR w.p. */
-  background-color:     #DDDD7F;
-}
 .res4, .res5,
 td.content > form.res4,
 td.content > form.res5
 {
   background-color:     #55AA6F;
+}
+.res6,
+td.content > form.res6
+{ /* CR w.p. */
+  background-color:     #DDDD7F;
 }
 .res7,
 td.content > form.res7
@@ -340,6 +336,26 @@ td.content > form.res13
   background-color:     #CCAA99;
 }
 
+.res15, .res18,
+td.content > form.res15,
+td.content > form.res18
+{ /* side internet */
+  background-color:     #AA99CC;
+}
+.res16, .res17,
+td.content > form.res16,
+td.content > form.res17
+{ /* left and right internet */
+  background-color:     #7F99CC;
+}
+.res19, .res20,
+td.content > form.res19,
+td.content > form.res20
+{
+  background-color:     #55AA6F;
+}
+
+
 tr.cfgvar > td {
   border-bottom:        1px dotted #294D4A;
 }
@@ -357,6 +373,7 @@ table.dbrecord td {
   border-bottom:        3pt solid #9F9F9F;
 }
 
-tr.signup:nth-child(2n - 1) td {
+tr.signup:nth-child(2n - 1) td,
+table.list tr:nth-child(2n - 1) td {
   background-color:     #CCCCCC;
 }

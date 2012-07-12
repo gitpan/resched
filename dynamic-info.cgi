@@ -89,7 +89,7 @@ sub senddoneearlyform {
                 qq[<form action="./" method="GET" name="doneearlyform" class="doneearly">
         <input type="hidden" name="action"    value="change" />
         <input type="hidden" name="doneearly" value="$$booking{id}" />
-        <input type="hidden" name="usestyle"  value="$input{usestyle}" />
+        ] . persist('hidden', ['magicdate']) . qq[
                    $for finished at
                    <input type="hidden" name="donetime_datetime_year"  value="].$donedt->year.qq[" />
                    <input type="hidden" name="donetime_datetime_month" value="].$donedt->month.qq[" />
@@ -165,7 +165,6 @@ sub sendnewbookingform {
                      <input type="hidden" name="when"     value="$when" />
                      <input type="hidden" name="resource" value="$res{id}" />
                      <input type="hidden" name="usestyle" value="$input{usestyle}" />
-                     <input type="hidden" name="stylepics" value="$input{stylepics}" />
                      <input type="text" name="bookedfor" size="20" id="$focid" />
                      $untilinput
                      <span class="nobr">initial:<input type="text" size="3" name="staffinitials" maxsize="20" /></span>

@@ -24,7 +24,8 @@ require "./datetime-extensions.pl";
 our %input = %{getforminput()};
 #$input{useajax} = 'off'; # Hardcoding this would turn the AJAX stuff off for everybody (e.g. for testing)
 
-our $persistentvars = qq[usestyle=$input{usestyle}&amp;useajax=$input{useajax}];
+our $persistentvars = persist();
+our $hiddenpersist  = persist('hidden');
 my $datevars = join "&amp;", grep { $_ } map { $input{$_} ? "$_=$input{$_}" : '' } qw (year month mday magicdate startyear startmonth startmday endyear endmonth endmday);
 
 sub usersidebar; # Defined below.
@@ -49,12 +50,9 @@ if ($auth::user) {
   }
   if ($input{search}) {
     print include::standardoutput("Search Results:  " . encode_entities($input{search}),
-                                  searchresults(),
-                                  $ab, $input{usestyle});
+                                  searchresults(), $ab, $input{usestyle});
   } elsif ($input{action} eq 'newaliasfrm') {
-    print include::standardoutput("Alias Management",
-                                  newaliasform(),
-                                  $ab, $input{usestyle});
+    print include::standardoutput("Alias Management", newaliasform(), $ab, $input{usestyle});
   } elsif ($input{action} eq 'createalias') {
     my $arec = +{
                  alias => include::normalisebookedfor($input{alias}),
@@ -194,11 +192,10 @@ if ($auth::user) {
           (join $/, map{"       <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- result: $$_[3] --></li>"}@changes)
           .qq[</ul></p><p class="info"><a href="./?booking=$ob{id}&amp;$persistentvars">View the updated main booking.</a></p>];
       } else {
-        unshift @result, qq[<p class="error">No changes were made!</p>];
+        unshift @result, include::errordiv('Error - No Changes', qq[No changes were made!]);
       }
       print include::standardoutput('Resource Scheduling: early finish recorded',
-                                    "@result",
-                                    $ab, $input{usestyle},
+                                    "@result", $ab, $input{usestyle},
                                     redirect_header($resource, $when)
                                    );
     } else {
@@ -215,8 +212,7 @@ if ($auth::user) {
                                     (qq[<form action="./" method="POST" name="doneearlyform">
         <input type="hidden" name="doneearly" value="$ob{id}"></input>
         <input type="hidden" name="action"    value="change"></input>
-        <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-        <input type="hidden" name="useajax"   value="$input{useajax}" />
+        ].persist('hidden', ['magicdate']).qq[
         <table><tr>
            <td>
              <p>$ob{bookedfor} booked the $res{name}
@@ -273,7 +269,7 @@ if ($auth::user) {
           .(join$/,map{"             <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- $$_[3] --></li>"}@changes)
           ."</ul></p>";
       } else {
-        push @listing, qq[<p class="error">No changes were made!</p>];
+        push @listing, include::errordiv('Error - No Changes', qq[No changes were made!]);
       }
       # The main booking has been switched to the target resource.
       if (@targetbook) {
@@ -286,7 +282,7 @@ if ($auth::user) {
               .(join$/,map{"             <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- $$_[3] --></li>"}@changes)
               ."</ul></p>";
           } else {
-            push @listing, qq[<p class="error">No changes were made!</p>];
+            push @listing, include::errordiv('Error - No Changes', qq[No changes were made!]);
           }
         }
       } else {
@@ -298,10 +294,12 @@ if ($auth::user) {
     } else {
       my $sysadmin = getvariable('resched', 'sysadmin_name');
       print include::standardoutput('Error:  Cannot Switch To Resource $input{with}',
-                                    qq[<p class="error">Weird Error:  Blue Tomatoes (ask $sysadmin)</p>
-                                     <!-- You said you wanted to switch Booking #$input{id}
-                                     ($mainbook{bookedfor}) from resource $mainbook{resource} ($mainres{name})
-                                     to resource $input{with}, but there is no resource with id number $input{with}. -->],
+                                    include::errordiv('Weird Error',
+                                           qq{Blue Tomatoes: This looks like a job for $sysadmin.
+                                     <div class="fineprint">You said you wanted to switch Booking
+                                     number $input{id} ($mainbook{bookedfor}) from resource
+                                     $mainbook{resource} ($mainres{name}) to resource $input{with},
+                                     but there is no resource with id number $input{with}.</div>}),
                                     $ab, $input{usestyle});
     }
     # ****************************************************************************************************************
@@ -347,8 +345,7 @@ if ($auth::user) {
                                      qq[<form action="./" method="post">
                                     <input type="hidden" name="action" value="confirm"></input>
                                     <input type="hidden" name="cancel" value="$input{cancel}"></input>
-                                    <input type="hidden" name="usestyle" value="$input{usestyle}" />
-                                    <input type="hidden" name="useajax" value="$input{useajax}" />
+                                    $hiddenpersist
                                     <input type="submit" value="Confirm"></input>
                                     </form>]),
                                     $ab, $input{usestyle});
@@ -394,9 +391,9 @@ if ($auth::user) {
       $realkey{$ck} = qq[$CK</td><td> <cite style="font-size: 70%">($realkey{$ck})</cite>]
         unless lc $realkey{$ck} eq lc $CK;
     }
-    my @metacount;
+    my (@metacount, $fullcount);
     my $list = join "\n", map {
-      $metacount[$count{$_}]++;
+      $metacount[$count{$_}]++; $fullcount++;
       qq[<tr><td class="numeric">$count{$_}:</td>
              <td><a href="./?search=].uriencode($_).qq[&amp;$persistentvars">$realkey{$_}</a></td></tr>]
     } sort {
@@ -404,11 +401,11 @@ if ($auth::user) {
     } grep {
       $count{$_} >= $input{frequser}
     } keys %count;
-    $list ||= '<tr><td>none found</td></tr>';
+    $list ||= qq[<tr><td>none found with frequency >= $input{frequser}</td></tr>];
     my $n = scalar (keys %count);
     print include::standardoutput('Frequent Users',
                                  qq[
-      <div>Found $n distinct users (under $rawn names)<!-- res: @res -->.</div>
+      <div>Found $n distinct users (under $rawn names)<!-- res: @res -->.  Listing the top $fullcount.</div>
       <table><tbody>$list</tbody></table>
       <div>&nbsp;</div>
       <div>Meta Count: <ul>] . (join "\n", (map {
@@ -458,17 +455,17 @@ if ($auth::user) {
     print include::standardoutput('Resource Scheduling:  CSS Test',
                                   qq[
     <div class="admin">
-       <div><strong>admin</strong></div>
+       <div><strong>Admin</strong></div>
        This is an admin div.
        <a href="index.cgi?csstest=yes">This is a link.</a>
     </div>
     <div class="error">
-       <div><strong>error</strong></div>
+       <div><strong>Error</strong></div>
        This is an error div.
        <a href="index.cgi?csstest=yes">This is a link.</a>
     </div>
     <div class="info">
-       <div><strong>info</strong></div>
+       <div><strong>Info</strong></div>
        This is an info div.
        <a href="index.cgi?csstest=yes">This is a link.</a>
     </div>
@@ -504,12 +501,12 @@ if ($auth::user) {
     my $now = DateTime->now(time_zone => $include::localtimezone);
     my $resexplan = ($input{mday}) ? '<strong><em>Check one or more resource(s):</em></strong>' : "";
     $input{month} ||= $now->month(); $input{year} ||= $now->year(); $input{mday} ||= $now->mday();
+    my $closeddays = join ',', map { $_ . 's' } daysclosed(2);
 
     print include::standardoutput('Resource Scheduling',
                                   qq[<h2>Welcome to the Resource Scheduling facility.</h2>
 <form action="./" method="POST">
-<input type="hidden" name="usestyle"  value="$input{usestyle}" />
-<input type="hidden" name="useajax"   value="$input{useajax}" />
+] . persist('hidden', ['category']) . qq[
 <table style="border-style: ridge; padding: 0.5em;">
   <colgroup span="2"><col width="40%"></col><col width="60%"></col></colgroup>
 <thead><tr><th>Resource(s):</th><th>Date(s):</th></tr></thead>
@@ -523,10 +520,10 @@ if ($auth::user) {
            <p>Day(s): <input type="text" name="mday" value="$input{mday}"></input></p>
            <p>(For days, you can give a comma-separated list of
                dates and date ranges.  Dates are taken in order, so
-               <q><code>30-31,1-3</code></q> will show the 30th and 31st of
+               <q><code>30-31,1-3</code></q> will show the 30<sup>th</sup> and 31<sup>st</sup> of
                the month you specify plus the first three days of the
                next month.  <q><code>1,1,1,1</code></q> will show the first of the month
-               for four months.  Sundays are not shown.)</p>
+               for four months.  $closeddays are not shown.)</p>
            </td></tr>
 </table>
 <p><input type="submit" value="View Schedule"></input></p>
@@ -627,7 +624,7 @@ sub viewbooking {
         } elsif ($input{followupname}) {
           push @bookinglisting, qq[<div class="info">No changes were made to the main booking.</div>];
         } else {
-          push @bookinglisting, qq[<div class="error">No changes were made!</div>];#@DateTime::NormaliseInput::Debug";
+          push @bookinglisting, include::errordiv('No Changes', qq[No changes were made!]);#@DateTime::NormaliseInput::Debug";
           push @bookinglisting, "<!-- newb: $/".(join$/,map{"\t$_\t => $b{$_}"} keys %b)." -->" if $debug;
         }
         %b = %{getrecord('resched_bookings', $b{id})}; # Refresh the record, so we have it with the changes made.
@@ -644,12 +641,12 @@ sub viewbooking {
            ? qq[ <cite><a href="./?alias=$b{bookedfor}">This name has ] . (scalar @alias) . qq[ aliases.</a></cite>]
            : qq[ <cite><a href="./?action=newaliasfrm&amp;newalias=$b{bookedfor}">Make this name an alias.</a></cite>]
           );
-      my (@switchwith, $switchwith);
+      my ($switchwith, @switchwith) = ('',);
       if (not $b{isfollowup}) {
         @switchwith = map {
           my %sw = %{getrecord('resched_resources',$_)};
           qq[<!-- $_ --><span class="nobr"><a href="./?action=switch&amp;id=$b{id}&amp;with=$sw{id}&amp;$persistentvars">$sw{name}</a></span>]
-        } split /,/, $res{switchwith};
+        } parseswitchwith($res{switchwith}, $res{id});
         if (@switchwith) {
           $switchwith = qq[<div class="switchwith">Switch With:  ] . (join "\n              ", @switchwith) . "</div>";
         }
@@ -667,8 +664,7 @@ sub viewbooking {
       push @bookinglisting, qq[<form action="./" method="post">
            <input type="hidden" name="booking" value="$b{id}" />
            <input type="hidden" name="action" value="changebooking" />
-           <input type="hidden" name="usestyle" value="$input{usestyle}" />
-           <input type="hidden" name="useajax" value="$input{useajax}" />
+           $hiddenpersist
            <table>
               <col></col><col width="190px"></col><col></col>
            <tbody>
@@ -686,11 +682,11 @@ sub viewbooking {
               <tr><td>From<sup><a href="#footnote1">1</a></sup>:</td>
                   <td>].(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK')).qq[</td>
                   <td><input type="checkbox" name="latestart" ".($b{latestart} ? ' checked="checked" ' : '')." />&nbsp;Started late at
-                      ".(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL'))."</td></tr>
+                      ].(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL')).qq[</td></tr>
               <tr><td>Until<sup><a href="#footnote2">2</a></sup>:</td>
-                  <td>".(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM'))."</td>
-                  <td><input type="checkbox" name="doneearlycheckbox" ].($b{doneearly}?' checked="checked" ' : '')." />&nbsp;Done early at
-                      ".(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN')).qq[
+                  <td>].(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM')).qq[</td>
+                  <td><input type="checkbox" name="doneearlycheckbox" ].($b{doneearly}?' checked="checked" ' : '').qq[ />&nbsp;Done early at
+                      ].(DateTime::Form::Fields($earldt,'booking_doneearly', 'skipdate',undef,'FieldsN')).qq[
                       Followed by: <input name="followupname" value="$fbyrec{bookedfor}" />
                       <span class="nobr">Initials:<input name="followupstaffinitials" size="4" type="text" value="$fbyrec{staffinitials}" /></span>
                       </td></tr>
@@ -869,7 +865,7 @@ sub newbooking {
                                include::twelvehourtime($when->hour() . ':' . sprintf "%02d", $when->minute())
                               )." to ".(include::twelvehourtime($until->hour() . ":" . (sprintf "%02d", $until->minute())))." on ".($when->date());
   } else {
-    my $hourselect = '<select name="untilhour">'.(include::houroptions($until->hour())).'</select>';
+    my $hourselect = '<select name="untilhour">'.(include::houroptions($until->hour(), $until->dow())).'</select>';
     $untilp = "Booking from ".(
                                include::twelvehourtime($when->hour() . ":" . sprintf "%02d", $when->minute())
                               ).qq[ to
@@ -882,13 +878,12 @@ sub newbooking {
   if (@collision) {
     my %extant = %{$collision[0]};
     my %bookedby = %{getrecord('users', $extant{bookedby})};
-    return (qq[<p class="error">$res{name} is already booked for
+    return (include::errordiv('Booking Conflict', qq[$res{name} is already booked for
                                      $extant{bookedfor} (booked by $bookedby{nickname})
                                      from $extant{fromtime} until $extant{until}.
-                                     </p>
                                      <p><a href="./?booking=$extant{id}&amp;$persistentvars">View
-                                        or edit the existing booking.</a></p>],
-            "Collision: $res{name} already booked for $input{when}");
+                                        or edit the existing booking.</a></p>]),
+            "Booking Conflict: $res{name} already booked for $input{when}");
   } else {
     my $when = DateTime::From::MySQL($input{when});
     # No collision; let the user schedule the resource:
@@ -985,8 +980,7 @@ sub newbooking {
        <input type="hidden" name="action"    value="makebooking" />
        <input type="hidden" name="when"      value="$input{when}" />
        <input type="hidden" name="resource"  value="$input{resource}" />
-       <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-       <input type="hidden" name="useajax"   value="$input{useajax}" />
+       $hiddenpersist
        <p>Enter the name of the person or group who will be using the $res{name}:
             <input type="text" name="bookedfor" size="50"></input></p>
        <p>$untilp
@@ -1068,8 +1062,8 @@ sub aliassearch {
     @arec = map { $a{$_} } sort { $$a <=> $$b } keys %a;
   }
   if (not scalar @arec) {
-    return (qq[<div class="error">Sorry, but I couldn't find an alias
-                                         record for <q>$alias</q>.</div>],
+    return (include::errordiv('Error - Missing Alias', qq[Sorry, but I couldn't find an alias
+                                         record for <q>$alias</q>.]),
             "Alias Not Found: $alias");
   } else {
     my $content = join "\n<hr />\n", qq[<div>Names should be entered here in <q>normalized form</q>:
@@ -1115,6 +1109,7 @@ sub overview {
   # User wants to just see a broad overview for certain resource(s).
   my @res = split /,\s*/, $input{overview};
   my %res;
+  my %alwaysclosed = map { $_ => 1 } daysclosed(0);
   for my $id (@res) {
     $res{$id} =
       {
@@ -1143,16 +1138,19 @@ sub overview {
                            );
   my $monthdt = $begdt->clone();
   my $dt = $monthdt->clone();
+  my @dowhead = map { qq[<th class="dow">$_</th>] } daysopen(1);
 
   push @calendar, qq[<!-- begdt: $begdt; enddt: $enddt -->
       <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
-        <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+        <thead><tr>@dowhead</tr></thead>
         <tbody><tr>];
   if ($dt->wday > 1) { push @calendar, (qq[<td></td>] x ($dt->wday - 1)); }
   while ($dt <= $enddt) {
-    if ($dt->wday == 7) {
-      # We don't do Sunday, but we do wrap around to the next week.
+    if (not $dt->wday % 7) {
       push @calendar, qq[</tr>\n<tr>];
+    }
+    if ($alwaysclosed{$dt->wday % 7}) {
+      # do nothing further; we are closed
     } else {
       my @b = overview_get_day_bookings($dt, @res);
       my ($y, $mon, $mday) = ($dt->year, $dt->month, $dt->mday);
@@ -1172,7 +1170,7 @@ sub overview {
         push @calendar, qq[</tr></tbody></table>
           <p class="calmonthtransition" />
           <table class="monthcal"><caption>].$dt->month_name.qq[</caption>
-          <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+          <thead><tr>@dowhead</tr></thead>
           <tbody><tr>] . join "", map {'<td></td>'} 1..($dt->dow - 1);
         $monthdt = $dt->clone();
       } else {
@@ -1186,8 +1184,7 @@ sub overview {
   push @calendar, qq[
     <form class="nav" action="index.cgi" method="get">Get overview
          <input type="hidden" name="overview" value="$input{overview}" />
-         <input type="hidden" name="usestyle" value="$input{usestyle}" />
-         <input type="hidden" name="useajax" value="$input{useajax}" />
+         ] . persist('hidden') . qq[
          <span class="nobr">starting from $startmonthoptions
                of <input type="text" name="startyear" size="5" value="$input{startyear}" />
                </span>
@@ -1201,12 +1198,57 @@ sub overview {
   return ((join "\n", @calendar), "Overview");
 }
 
+sub daysclosed {
+  my ($form) = @_; # $form should be 0 for number, 1 for abbreviation, 2 for full day name.
+  my @num = map { $_ % 7 } split /,\s*/, (getvariable('resched', 'daysclosed') || '0');
+  return @num if not $form;
+  my @answer;
+  for my $num (@num) {
+    my $dt = DateTime->new( year => 1970, month => 1, day => 1 );
+    while (($dt->dow() %7) ne ($num %7)) {
+      $dt = $dt->add(days => 1);         }
+    if ($form > 1) {
+      push @answer, $dt->day_name();
+    } else {
+      push @answer, $dt->day_abbr();
+    }}
+  return @answer;
+}
+
+sub daysopen {
+  my ($form) = @_;
+  # $form should be 0 for number, 1 for abbreviation, 2 for full day name.
+  my %alwaysclosed = map { $_ => 1 } daysclosed(0);
+  my $dt = DateTime->new( year => 1978, month => 1, day => 1 ); # This date corresponds to a Sunday.
+  my @dow;
+  for (0 .. 6) {
+    if (not $alwaysclosed{$dt->dow() % 7}) {
+      if ($form > 1) {
+        push @dow, $dt->day_name();
+      } elsif ($form > 0) {
+        push @dow, $dt->day_abbr();
+      } else {
+        push @dow, $dt->dow();
+      }}
+    $dt = $dt->add( days => 1 );
+  }
+  return @dow;
+}
+
 sub doview {
   # User wants to see the hour-by-hour schedule for certain resource(s).
   # This was originally inlined above, but it was long, so I factored
   # it out to a subroutine for maintainability.
     my $now = DateTime->now(time_zone => $include::localtimezone);
-    my @res = split /,\s*/, $input{view};
+    my %alwaysclosed = map { $_ => 1 } daysclosed(0);
+    my @category = include::categories();
+    my %category = map { my @x = @$_; my $name = shift @x; ($name, \@x) } @category;
+    my @res;
+    if ($input{category} and $category{$input{category}}) {
+      @res = @{$category{$input{category}}};
+    } else {
+      @res = split /,\s*/, $input{view};
+    }
 
     my %res;
     for my $id (@res) {
@@ -1226,10 +1268,10 @@ sub doview {
     my $gcf;
     { # Now, we need the gcf interval.  Start based on schedules...
 
-      # We need is the gcf of the durations of the _offsets_ (not of
-      # the start times themselves).  The algo below takes
-      # permutations, which will run in O(n*n) time, so don't feed it
-      # large numbers of distinct starttimes.
+      # We need the gcf of the durations of the _offsets_ (not of the
+      # start times themselves).  The algo below takes permutations,
+      # which will run in O(n*n) time, so don't feed it large numbers
+      # of distinct starttimes.
       my @offset = uniqnonzero map {
         my $st = $_;
         map { abs ($st - $_) } @starttime;
@@ -1269,11 +1311,9 @@ sub doview {
                              hour   => int($t / 60),
                              minute => $t % 60,
                             );
-      if ($dt->dow() < 7) {
-        $dt;
-      } else {
-        (); # No Sundays.  We are closed.
-      }
+      ($alwaysclosed{$dt->dow() % 7})
+        ? () # We are always closed that day.
+        : $dt;
     } map {
       if (/(\d+)-(\d+)/) {
         $1 .. $2
@@ -1298,17 +1338,19 @@ sub doview {
 <p>$gcf</p>
 <p>Starting Times:<pre>".encode_entities(Dumper(@dt))."</pre></p>\n" if $debug;
 
-    my %endingtime =
-      (
-       #(map { $_ => [20, 30] } (1..4)), # 8:30pm Monday - Thursday,
-       #5 => [18, 0], # 6pm on Friday,
-       #6 => [17, 0], # 5pm on Saturday,
-       #7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
-       (map { $_ => [20, 20] } (1..4)), # 8:20pm Monday - Thursday,
-       5 => [17, 50], # 5:50pm on Friday,
-       6 => [16, 50], # 4:50pm on Saturday,
-       7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
-      );
+#    my %endingtime =
+#      (
+#       #(map { $_ => [20, 30] } (1..4)), # 8:30pm Monday - Thursday,
+#       #5 => [18, 0], # 6pm on Friday,
+#       #6 => [17, 0], # 5pm on Saturday,
+#       #7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
+#       (map { $_ => [20, 20] } (1..4)), # 8:20pm Monday - Thursday,
+#       5 => [17, 50], # 5:50pm on Friday,
+#       6 => [16, 50], # 4:50pm on Saturday,
+#       7 => [8, 0],  # 8am on Sunday (i.e., we're not open at all).  This should never get used, though, because we filter out Sundays entirely.
+#      );
+    my %endingtime = include::closingtimes();
+    #warn Dumper(\%endingtime);
 
     @col;
     # For each day we're showing, we want columns for each resource.
@@ -1358,14 +1400,14 @@ sub doview {
                       my $thclass  = ($dt->ymd eq $now->ymd) ? 'todayth' : 'dateth';
                       qq[<th colspan="].(scalar @res). qq[" class="$thclass"><a href="./?view=$input{view}&amp;year=].
                           ($dt->year())."&amp;month=".($dt->month)."&amp;mday=".($dt->mday()).
-                          qq[&amp;$persistentvars">]
+                          '&amp;' . persist(undef, ['magicdate']) . '">'
                           .($dt->day_name()) . ", " .($dt->ymd())."</a></th>"
                         } @dt
                    )."<!-- dt: @dt --></tr>\n");
     push @thead, ("<tr>".( join '',
                            map {
                              "<!-- res: @res -->".join'', map {
-                               qq[<th class="res$res{$_}{id}"><a href="./?view=$res{$_}{id}&amp;year=$input{year}&amp;month=$input{month}&amp;mday=$input{mday}&amp;$persistentvars">$res{$_}{name}</a></th>]} @res
+                               qq[<th class="res$res{$_}{id}"><a href="./?view=$res{$_}{id}&amp;year=$input{year}&amp;month=$input{month}&amp;mday=$input{mday}&amp;]. persist(undef, ['magicdate']) .qq[">$res{$_}{name}</a></th>]} @res
                            } @dt
                          )."<!-- dt: @dt --></tr>\n");
     my $maxnts; # Each iteration of the loop below calculates an $nts
@@ -1537,12 +1579,12 @@ sub doview {
               # or (not $$c{sch}{durationlock}) # This MAY not matter too, provided the user can always do things the old way if a different duration is wanted.
               or ($input{useajax} eq 'off')) {
             $availstuff = qq[<!-- *** Regularly Scheduled Interval ***
-             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>];
+             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;]. persist() . qq[" class="avail">(available)</a>];
           } else {
             ++$uniqueid;
             $availstuff = qq[<span id="unid$uniqueid"><!-- *** Regularly Scheduled Interval ***
-             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars" class="avail">(available)</a>
-                <input type="button" value="Quick!" onclick="onemoment('unid$uniqueid'); sendajaxrequest('ajax=newbookingform&amp;containerid=unid$uniqueid&amp;resource=$resid&amp;when=$whentext&amp;$persistentvars');" />
+             --><a href="./?action=newbooking&amp;resource=$resid&amp;when=$whentext&amp;]. persist() . qq[" class="avail">(available)</a>
+                <input type="button" value="Quick!" onclick="onemoment('unid$uniqueid'); sendajaxrequest('ajax=newbookingform&amp;containerid=unid$uniqueid&amp;resource=$resid&amp;when=$whentext&amp;] . persist(undef, ['magicdate']) . qq[');" />
              </span>];
           }
           $$c{tdcontent}[$tsn] ||= $availstuff;
@@ -1627,7 +1669,7 @@ sub doview {
       my ($name, @res) = @$_;
       my $view = join ',', sort { $a <=> $b } @res;
       ($view => $name)
-    } include::categories();
+    } @category;
     my $thisview = join ",", sort { $a <=> $b } split /,\s*/, $input{view};
     if ($input{magicdate} eq 'today') {
       $pagetitle = "Today's ";
@@ -1735,12 +1777,12 @@ sub gatherstats {
     . "&amp;startyear="  . $prevstart->year()  . "&amp;endyear="  . $startstats->year()
     . "&amp;startmonth=" . $prevstart->month() . "&amp;endmonth=" . $startstats->month()
     . "&amp;startmday="  . $prevstart->mday()  . "&amp;endmday="  . $startstats->mday()
-    . qq[&amp;$persistentvars">&lt;= previous $hrd</a>];
+    . '&amp;' . persist(undef, ['magicdate']) . qq[">&lt;= previous $hrd</a>];
   my $nextlink = '<a href="./?stats=custom'
     . "&amp;startyear="  . $endstats->year()  . "&amp;endyear="  . $nextend->year()
     . "&amp;startmonth=" . $endstats->month() . "&amp;endmonth=" . $nextend->month()
     . "&amp;startmday="  . $endstats->mday()  . "&amp;endmday="  . $nextend->mday()
-    . qq[&amp;$persistentvars">next $hrd =&gt;</a>];
+    . '&amp;' . persist(undef, ['magicdate']) . qq[">next $hrd =&gt;</a>];
   print include::standardoutput('Usage Statistics',
                                 qq[<div><strong>Gathering Usage Statistics</strong></div>
        <div><strong>Starting at 12:01 am on ] . $startstats->ymd() . qq[</strong></div>
@@ -1755,8 +1797,7 @@ sub gatherstats {
           <form action="index.cgi" method="post">
              Custom Timeframe:
              <input type="hidden" name="stats" value="custom" />
-             <input type="hidden" name="usestyle" value="$input{usestyle}" />
-             <input type="hidden" name="useajax" value="$input{useajax}" />
+             ] . persist('hidden', ['magicdate']) . qq[
              <table><thead>
                 <tr><th></th><th>Year</th><th>Month</th><th>Day</th><th>Time</th></tr>
              </thead><tbody>
@@ -1842,13 +1883,13 @@ sub searchresults {
   }
   if (not @result) {
     print include::standardoutput("Not Found:  " . encode_entities($input{search}),
-                                  qq[<div class="error"><p>Sorry, but I couldn't find any
-                                     bookings where the string <q>$input{search}</q> matched
-                                     either in the party it was booked for or in the notes.</p></div>],
-                                    $ab, $input{usestyle});
+                                  include::errordiv('No Bookings Found',
+                                           qq[Sorry, but I couldn't find any
+                                              bookings where the string <q>$input{search}</q> matched
+                                              either in the party it was booked for or in the notes.]),
+                                  $ab, $input{usestyle});
   }
   # So if we get here, we have results in @result:
-  my $co = "$persistentvars";
   return qq[<table class="searchresults"><thead>
               <tr><th>Booking</th><th>Resource</th><th>Date &amp; Time</th><th>Notes</th><th>Booked By</th></tr>
           </thead><tbody>\n].(join "\n                ", map {
@@ -1861,7 +1902,7 @@ sub searchresults {
                                                    ). '</span>)</cite></div>'
                                                      : '';
             my $dt = DateTime::From::MySQL($$_{fromtime});
-            qq[<tr><td class="res$$_{resource}"><a href="./?$co&amp;booking=$$_{id}">$$_{bookedfor}</a>$al</td>
+            qq[<tr><td class="res$$_{resource}"><a href="./?$persistentvars&amp;booking=$$_{id}">$$_{bookedfor}</a>$al</td>
                  <td class="res$$_{resource}">].(encode_entities($r{name})).qq[</td>
                  <td class="res$$_{resource}">].($dt->ymd . " " . $dt->hms).qq[</td>
                  <td class="res$$_{resource}">].(encode_entities($r{notes})).qq[</td>
@@ -1880,6 +1921,7 @@ sub extendbooking {
     %booking = %{getrecord('resched_bookings', $booking{isfollowup})};
   }
   my %resource = %{getrecord('resched_resources', $booking{resource})};
+  $resource{id} or warn "Improper resource: ($booking{resource}, from booking $booking{id}) " . Dumper(\%resource);
   my %schedule = %{getrecord('resched_schedules', $resource{schedule})};
   my $when = DateTime::From::MySQL($booking{fromtime});
   my $until = DateTime::From::MySQL($booking{until});
@@ -1892,7 +1934,7 @@ sub extendbooking {
     $newuntil = $newuntil->subtract(minutes => $schedule{intervalmins});
   }
   # Kludge input so that the results actually get displayed:
-  $input{view} ||= join ",", sort { $a <=> $b } $resource{id}, split /,/, $resource{showwith};
+  $input{view} ||= join ",", parseshowwith($resource{showwith}, $resource{id});
   $input{year} ||= $when->year(); $input{month} ||= $when->month(); $input{mday} ||= $when->mday();
   # Now return a message that says whether it worked or not:
   if ($newuntil > $until) {
@@ -1902,8 +1944,8 @@ sub extendbooking {
       redirect_header(\%resource, $when, 30);
   } else {
     # No Can Do.
-    return qq[<div class="error">Booking #$booking{id} cannot be extended, due to the following scheduling conflict(s) for the $resource{name}.<ul>
-      ] .(join "\n", map { "<li>$$_{id} ($$_{bookedfor}) from $$_{fromtime} until $$_{until}</li>" } @collision). "</ul>  Sorry!</div>",
+    return include::errordiv('Booking Conflict', qq[Booking #$booking{id} cannot be extended, due to the following scheduling conflict(s) for the $resource{name}.<ul>
+      ] .(join "\n", map { "<li>$$_{id} ($$_{bookedfor}) from $$_{fromtime} until $$_{until}</li>" } @collision). "</ul>  Sorry!"),
         undef; # No redirect in this instance
   }
 }
@@ -1926,10 +1968,10 @@ sub daysclosedform {
        <input type="text" name="mday$_" size="3" value="] . ( ($_ == 1) ? '1' : '' ) . qq[" />
      </div>]
   } (1 .. ($input{batch} || 1));
+  my $psvars = persist('hidden', ['magicdate']);
   return <<"DAYSCLOSEDFORM";
 <form action="index.cgi" method="post">
-  <input type="hidden" name="usestyle" value="$input{usestyle}" />
-  <input type="hidden" name="useajax" value="$input{useajax}" />
+  $psvars
   <input type="hidden" name="action" value="daysclosed" />
   <input type="hidden" name="bookedfor" value="CLOSED" />
   <div>Mark <em>all resources</em> unavailable
@@ -1983,13 +2025,17 @@ sub frequserform {
     qq[<option value="$_"$selected>$abbr</option>];
   } 1..12;
   $input{frequser} ||= 10;
+  my $resourceoptions = join "\n              ", map {
+    my @r = @$_;
+    my $catname = shift @r;
+    my $reslist = join ',', @r;
+    qq[<option value="$reslist">$catname</option>]
+  } include::categories();
   return qq[<form action="index.cgi" method="post">
        <div><span class="nobr">Look up users who used</span>
             <select name="resource">
               <option value="" selected="selected">anything</option>
-              <option value="15,16,17,3">the internet</option>
-              <option value="4,5,6">word processing</option>
-              <option value="10,11,12">meeting rooms</option>
+              $resourceoptions
            </select>
            <span class="nobr">at least <input type="text" size="5" name="frequser" value="$input{frequser}" /> times</span>
        </div>
@@ -2002,8 +2048,7 @@ sub frequserform {
                           <input type="text" name="endmday" size="3" value="] . $now->mday . qq[" />
             </span>
        </div>
-       <input type="hidden" name="usestyle" value="$input{usestyle}" />
-       <input type="hidden" name="useajax" value="$input{useajax}" />
+       ].persist('hidden', ['category', 'magicdate']).qq[
        <input type="submit" value="Look 'em up!" />
     </form>];
 }
@@ -2060,7 +2105,8 @@ sub redirect_header {
 sub select_redirect {
   my ($r, $when) = @_;
   return unless ref $when;
-  my @r = sort { $a <=> $b } $$r{id}, split/,/, $$r{showwith};
+  confess "select_redirect called with invalid resource" unless ref $r;
+  my @r = parseshowwith($$r{showwith}, $$r{id});
   my $now = DateTime->now(time_zone => $include::localtimezone);
   my $uri = getvariable('resched', 'url_base') . "?view="
     . (join ",", @r)
@@ -2068,7 +2114,7 @@ sub select_redirect {
       ? "&amp;magicdate=today"
       : "&amp;year=" . $when->year . "&amp;month=" . $when->month  . "&amp;mday=" . $when->mday
       )
-    . "&amp;" . $persistentvars;
+    . "&amp;" . persist(undef, ['magicdate']);
   $uri =~ s/resched/resched-dev/ if $0 =~ /resched-dev/;
    # Some sites (such as Galion) might have a test installation of a
    # development version, running on the same server, using the same
@@ -2083,7 +2129,7 @@ sub updates_uri {
   my ($res, $when) = @_;
   my @r = @$res;
   return unless ref $when;
-  my $pv = $persistentvars;
+  my $pv = persist(undef, ['category', 'magicdate']);
   $pv = s/&amp;/&/g;
   my $now = DateTime->now(time_zone => $include::localtimezone);
   my $uri = getvariable('resched', 'url_base') . "?view="
@@ -2210,6 +2256,7 @@ sub nonstandard_week_of_month {
 sub attemptbooking {
   my ($resource, $schedule, $when) = @_; # Two hashrefs and a DateTime object, respectively.
   my %sch = %$schedule; my %res = %$resource;
+  my %closedwday = map { $_ => 1 } split /,\s*/, getvariable('resched', 'daysclosed');
   my $until; {
     if ($sch{durationlock}) {
       $until = $when->clone()->add( minutes => $sch{durationmins} );
@@ -2236,18 +2283,16 @@ sub attemptbooking {
       }
     }}
   if ($until < $when) {
-    return                       qq[<div class="error">
-                                    <div><strong>Unauthorized Time Travel Attempt</strong></div>
-                                    The Time Police have intercepted your attempt to travel
-                                    backward in time from $when to $until and aborted it, and
-                                    your identity has been recorded in the temporal logs.
-                                    If you have a valid time travel permit, please fill
-                                    out form 709284750, section T, subsection 17, part C,
-                                    have it notarized in triplicate, and submit it to your
-                                    local Temporal Affairs office
-                                    in order to have your operation reinstated.
-                                    </div>]
-    ;
+    return  include::errordiv('Unauthorized Time Travel Attempt',
+                     qq[The Time Police have intercepted your attempt to travel
+                        backward in time from $when to $until and aborted it, and
+                        your identity has been recorded in the temporal logs.
+                        If you have a valid time travel permit, please fill
+                        out form 709284750, section T, subsection 17, part C,
+                        have it notarized in triplicate, and submit it to your
+                        local Temporal Affairs office in order to have your
+                        operation reinstated.  Remember, only you can prevent
+                        the entire space-time continuum from collapsing.]);
   }
   my $timewewant = DateTime::Span->from_datetimes(start => $when, before => $until);
   my @collision = include::check_for_collision_using_datetimes($res{id}, $when, $until);
@@ -2257,27 +2302,27 @@ sub attemptbooking {
       my %extant = %$_;
       my $inits = ($extant{staffinitials} ? " [$extant{staffinitials}]" : '');
       my %bookedby = %{getrecord('users', $extant{bookedby})};
-      qq[<div class="error">$res{name} is already booked for
-          $extant{bookedfor} (booked by $bookedby{nickname}$inits)
-          from $extant{fromtime} until $extant{until}.
-          (<a href="./?booking=$extant{id}&amp;$persistentvars">View
-           or edit the existing booking.</a>)</div>];
+      include::errordiv('Booking Conflict',
+               qq[$res{name} is already booked for
+                  $extant{bookedfor} (booked by $bookedby{nickname}$inits)
+                  from $extant{fromtime} until $extant{until}.
+                  (<a href="./?booking=$extant{id}&amp;$persistentvars">View
+                  or edit the existing booking.</a>)]);
     } @collision;
-  } elsif ($when->dow == 7) {
-    return '<div class="error">The '.ordinalnumber($when->mday)." of ".$when->month_name."
-            falls on a ".($when->day_name)." in ".$when->year.".  $res{name} not booked.</div>";
+  } elsif ($closedwday{$when->dow}) {
+    return include::errordiv('Booking Conflict', 'The '.ordinalnumber($when->mday)." of ".$when->month_name."
+            falls on a ".($when->day_name)." in ".$when->year.".  $res{name} not booked.");
   } elsif ($res{requireinitials} and not $input{staffinitials}) {
-    return '<div class="error">Staff initials are required to book this resource.
-            Please go back and fill in your initials.  Thanks.</div>';
+    return include::errordiv('Initials Required', qq[Staff initials are required to book this resource.
+            Please go back and fill in your initials.  Thanks.]);
   } elsif ($res{requirenotes} and not $input{notes}) {
-    return '<div class="error">Notes are required to book this resource.  Please
-             go back and fill in contact information and any other relevant notes.
-             Thanks.</div>';
+    return include::errordiv('Notes Required', qq[Notes are required to book this resource.  Please
+             go back and fill in contact information and any other relevant notes.  Thanks.]);
   } elsif ($input{latestart} and (
                                   (not $input{latehour})
                                   or (not $input{lateminute})
                                  )) {
-    return qq[<div class="error">You said they started late, but you didn't say when.  Please fill out both the hour and minute fields.</div>];
+    return include::errordiv('Information Missing', qq[You said they started late, but you didn't say when.  Please fill out both the hour and minute fields.]);
   } else {
     my $fromtime = DateTime::Format::ForDB($when);
     my $bookedfor = encode_entities(include::dealias(include::normalisebookedfor($input{bookedfor})));
@@ -2345,9 +2390,7 @@ sub attemptbooking {
         }
         if (keys %result) {
           $didyoumean_invoked++;
-          $answer = qq[<div class="error">
-            <div class="p"><div><strong>Did You Mean:</strong></div>
-            <ul>
+          $answer = include::errordiv('Did You Mean', qq[<ul>
                ] . (join "\n", (map {
                       qq[               <li><a href="index.cgi?persistentvars&amp;action=didyoumean&amp;booking=$db::added_record_id&amp;bookedfor=$_">$_</a></li>]
                     } sort {
@@ -2362,15 +2405,12 @@ sub attemptbooking {
                    <form action="index.cgi" method="post">
                       <input type="hidden" name="action" value="didyoumean" />
                       <input type="hidden" name="booking" value="$db::added_record_id" />
-                      <input type="hidden" name="usestyle" value="$input{usestyle}" />
-                      <input type="hidden" name="useajax" value="$input{useajax}" />
+                      $hiddenpersist
                       <input type="hidden" name="freeform" value="yes" />
                       <input type="text" name="bookedfor" value="$name" />
                       <input type="submit" value="Change It" />
                    </form></li>
-            </ul>
-            </div>
-          </div>];
+            </ul>]);
         } else {
           # TODO: There are no suggestions.  Should we just bug the
           # user for more info?  Maybe later.
@@ -2390,10 +2430,9 @@ sub updatealias {
     $$arec{alias} = include::normalisebookedfor($input{alias});
     $$arec{canon} = include::normalisebookedfor($input{canon});
     if (not sanitycheckalias($arec)) {
-      return (qq[<div class="error">
-          <div><strong>Programming Error (Bug)</strong></div>
-          CAN'T HAPPEN: The subroutine sanitycheckalias cannot return false, but it did.
-          Find the programmer and give him what for.</div>], 'PROGRAMMING ERROR');
+      return (include::errordiv('Programming Error (Bug)',
+                                qq[CAN'T HAPPEN: The subroutine sanitycheckalias cannot return false, but it did.
+                     Find the programmer and give him what for.]), 'PROGRAMMING ERROR');
     } else {
       # Sanity checks passed: actually make the change.
       my (@changes) = @{updaterecord('resched_alias', $arec)};
@@ -2405,11 +2444,10 @@ sub updatealias {
       }
     }
   } else {
-    return (qq[<div class="error">Sorry, but I couldn't find alias #$id.</div>],
+    return (include::errordiv('Error - Missing Alias', qq[Sorry, but I couldn't find alias #$id.]),
             "Alias Not Found: $alias");
   }
-  return (qq[<div class="error"><div><strong>Programming Error (Bug)</strong></div>
-                 There is a fallthrough condition in the updatealias subroutine.</div>],
+  return (include::errordiv('Programming Error (Bug)', qq[There is a fallthrough condition in the updatealias subroutine.]),
           'PROGRAMMING ERROR');
 }
 
@@ -2440,13 +2478,76 @@ sub get_timerange_bookings {
   return @r;
 }
 
+sub getcategoryfromitem {
+  my ($r) = @_; # $r can be either a record (in hashref form) or just the number from the id field.
+  # No attempt is made to return multiple categories.  You get the first match.
+  my $resid;
+  if (ref $r) {
+    $resid = $$r{id};
+  } elsif ($r =~ /^\d+$/) {
+    $resid = $r;
+  } else {
+    confess "getcategoryfromitem called with invalid resource: $r";
+  }
+  for my $c (include::categories()) {
+    my ($name, @id) = @$c;
+    my @match = grep { $_ eq $resid } @id;
+    if (scalar @match) {
+      if (wantarray) {
+        return ($name, @id);
+      } else {
+        return $name;
+      }}}
+}
+
+sub parseshowwith {
+  my ($sw, $r) = @_; # That's (showwith, id) for a resource we were just working with.
+  my %category = map { my @x = @$_; my $name = shift @x; ($name, \@x) } include::categories();
+  if ($category{$sw}) {
+    my @r = @{$category{$sw}};
+    my %included = map { $_ => 1 } @r;
+    if ($included{$r}) {
+      return @r;
+    } else {
+      push @r, $r if not $included{$r};
+      return sort { $a <=> $b } @r;
+    }
+  } elsif ($sw =~ /\d/) {
+    return sort { $a <=> $b } ($r, (split /,/, $sw));
+  } else {
+    my $c = getcategoryfromitem($r);
+    return @{$category{$c}} if ref $category{$c};
+    return ($r);
+  }
+}
+
+sub parseswitchwith {
+  my ($sw, $r) = @_; # That's (switchwith, id) for a resource we were just working with.
+  #warn "parseswitchwith('$sw', $r)\n";
+  my %category = map { my @x = @$_; my $name = shift @x; ($name, \@x) } include::categories();
+  if ($category{$sw}) {
+    #use Data::Dumper; warn Dumper($category{$sw});
+    return grep { $_ ne $r } @{$category{$sw}};
+  } elsif ($sw =~ /\d/) {
+    #warn Dumper('split-on-comma');
+    return split /,/, $sw;
+  } else {
+    warn "Failed to parse sw: '$sw'" if $sw; # Don't warn for the empty string.
+    my $c = getcategoryfromitem($r);
+    if (ref $category{$c}) {
+      return grep { $_ ne $r } @{$category{$c}};
+    }}
+  return;
+}
+
 sub usersidebar {
   my $now = DateTime->now(time_zone => $include::localtimezone);
   my ($istoday) = 1; # Default to today.  This get changed if we look at any other day.
   my $oneweek  = join ",", map { DateTime->now(time_zone => $include::localtimezone)->add(days=>$_)->mday() } 0..6;
   my $twoweeks = join ",", map { DateTime->now(time_zone => $include::localtimezone)->add(days=>$_)->mday() } 0..13;
-  my $net = "15,16,17,3"; my $wp = "4,5,6";
+  #my $net = "15,16,17,3"; my $wp = "4,5,6";
   my $prevnext = '';
+  my %alwaysclosed = map { $_ => 1 } daysclosed(0);
   if ($input{mday}) {
     # The "next day(s)" link is complicated by the fact that we may
     # currently be displaying multiple days.  What we want to do is
@@ -2479,7 +2580,7 @@ sub usersidebar {
           $linktext = ($istoday ? 'Yesterday' : 'Previous') if $offset == -1;
           $linktext = ($istoday ? 'Tomorrow' : 'Next') if $offset == 1;
           my $year = $linkday->year; my $month = $linkday->month(); my $mday = $linkday->mday;
-          push @daylink, qq[<a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars">$linktext</a>]
+          push @daylink, qq[<a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;] . persist(undef, ['magicdate']) . qq[">$linktext</a>]
             unless $linkday->wday == 7;
         }
       }
@@ -2489,21 +2590,21 @@ sub usersidebar {
       my $prevday = $dt[-1];
       my @day; for (1..$numofdays) {
         my $nextday = $prevday->clone()->add(days=>1);
-        while ($nextday->dow() == 7) { $nextday = $nextday->clone()->add(days=>1) } # Skip Sundays.
+        while ($alwaysclosed{$nextday->dow() % 7}) { $nextday = $nextday->clone()->add(days=>1) } # Skip Sundays.
         push @day, $nextday->clone(); $prevday = $nextday->clone();
       }
       my $year = $day[0]->year(); my $month = $day[0]->month();
       my $mday = join ",", map { $_->mday() } @day;
-      my $next = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars">Next ].(($numofdays>1)?"$numofdays days":"day")."</a></span>";
+      my $next = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;].persist(undef, ['magicdate']).'">Next '.(($numofdays>1)?"$numofdays days":"day")."</a></span>";
       my $subday = $dt[0];
       @day = (); for (1..$numofdays) {
         my $prevday = $subday->clone()->subtract(days=>1);
-        while ($prevday->dow() == 7) { $prevday = $prevday->clone()->subtract(days=>1) } # Skip Sundays.
+        while ($alwaysclosed{$prevday->dow() % 7}) { $prevday = $prevday->clone()->subtract(days=>1) } # Skip Sundays.
         unshift @day, $prevday->clone(); $subday = $prevday->clone();
       }
       my $year = $day[0]->year(); my $month = $day[0]->month();
       my $mday = join ",", map { $_->mday() } @day;
-      my $prev = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;$persistentvars">Previous ].(($numofdays>1)?"$numofdays days":"day")."</a></span>";
+      my $prev = qq[<span class="nobr"><a href="./?view=$input{view}&amp;year=$year&amp;month=$month&amp;mday=$mday&amp;].persist(undef, ['magicdate']).'">Previous '.(($numofdays>1)?"$numofdays days":"day")."</a></span>";
       $prevnext = "&lt;-- $prev --- $next --&gt;";
     }
   }
@@ -2525,15 +2626,8 @@ sub usersidebar {
       . (join "\n     ", map {
         my ($catname, @id) = @$_;
         qq[<li><a href="./?view=] . (join ",", @id)
-        . qq[&amp;$datevars&amp;$persistentvars">$catname</a></li>]
+        . qq[&amp;$datevars&amp;category=$catname&amp;] . persist(undef, ['category']). qq[">$catname</a></li>]
       } @category) . qq[</ul>]
-    #  qq[<strong>$thisday:</strong><ul>
-    #   <li><a href="./?view=15,16,17&amp;$datevars&amp;$persistentvars">Upstairs Internet</a></li>
-    #   <li><a href="./?view=4,5&amp;$datevars&amp;$persistentvars">Upstairs W.P.</a></li>
-    #   <li><a href="./?view=3,6&amp;$datevars&amp;$persistentvars">Downstairs</a></li>
-    #   <li><a href="./?view=8,9,10&amp;$datevars&amp;$persistentvars">Meeting Rooms</a></li>
-    #   <li><a href="./?view=11,12,13,14&amp;$datevars&amp;$persistentvars">Practice Zone</a></li>
-    #</ul>];
   }
   $other = ($other) ? "<div>$other</div>" : '';
   my $currentview = join '&amp;', map {
@@ -2543,18 +2637,19 @@ sub usersidebar {
   my $today = qq[<div><strong>Today:</strong>\n   <ul>
       ] . (join "\n      ", map {
         my ($catname, @id) = @$_;
-        qq[<li><a href="./?view=] . (join ',', @id)
-        . qq[&amp;$persistentvars&amp;magicdate=today">$catname</a></li>]
+        qq[<li><a href="./?category=$catname&amp;view=] . (join ',', @id)
+        . '&amp;magicdate=today&amp;' . persist(undef, ['magicdate', 'category']) . qq[">$catname</a></li>]
       } @category) . qq[   </ul>\n   </div>];
   my @room = grep { $$_{flags} =~ /R/ and not $$_{flags} =~ /X/ } getrecord('resched_resources');
   my $roomsoneweek = qq[<div><strong>Rooms (1 week):</strong><ul>
         ] . (join "\n       ", map {
-              qq[<li><a href="./?view=$$_{id}&amp;year=].$now->year()."&amp;month=".$now->month().qq[&amp;mday=$oneweek&amp;$persistentvars">$$_{name}</a></li>]
+              my $r = $_;
+              qq[<li><a href="./?view=$$r{id}&amp;year=].$now->year()."&amp;month=".$now->month(). "&amp;mday=$oneweek&amp;" . persist(undef, ['category', 'magicdate']) . '"' . ">$$r{name}</a></li>"
              } @room)
           . qq[\n        </ul></div>];
   my $overview = qq[<div><strong>Overview (month):</strong><ul>
         ] . (join "\n        ", map {
-              qq[<li><a href="./?overview=$$_{id}&amp;startyear=]    . $now->year()."&amp;startmonth=".$now->month().qq[&amp;$persistentvars">$$_{name}</a></li>]
+              qq[<li><a href="./?overview=$$_{id}&amp;startyear=]    . $now->year()."&amp;startmonth=".$now->month(). '&amp;' . persist(undef, ['category', 'magicdate']) . '"' . ">$$_{name}</a></li>"
              } @room, +{
                         name => 'all meeting rooms',
                         id   => (join ',', map { $$_{id} } @room)
@@ -2564,13 +2659,11 @@ sub usersidebar {
           <span onclick="toggledisplay('searchlist','searchmark','expand');">Search:</span></strong>
           <div id="searchlist" style="display: none;">
             <ul><li><form action="index.cgi" method="post">
-                      <input type="hidden" name="usestyle"   value="$input{usestyle}" />
-                      <input type="hidden" name="useajax"    value="$input{useajax}" />
+                      $hiddenpersist
                       <span class="nobr"><input type="text" name="search" size="12" />&nbsp;<input type="submit" value="Search" /></span>
                     </form></li>
                 <li><form action="index.cgi" method="post">
-                      <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-                      <input type="hidden" name="useajax"   value="$input{useajax}" />
+                      $hiddenpersist
                       <span class="nobr"><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></span>
                     </form></li>
                 <li><a href="./?frequserform=1&amp;$persistentvars">frequent user lookup</a></li>
@@ -2582,18 +2675,17 @@ sub usersidebar {
         <div id="aliaslist" style="display: none;"><ul>
             <li><a href="index.cgi?action=newaliasfrm">New Alias</a></li>
             <li><form action="index.cgi" method="post">
-                  <input type="hidden" name="usestyle"  value="$input{usestyle}" />
-                  <input type="hidden" name="useajax"   value="$input{useajax}" />
+                  $hiddenpersist
                   <span class="nobr"><input type="text" name="alias" size="12" />&nbsp;<input type="submit" value="Alias Search" /></span>
                 </form></li>
         </ul></div></div>];
   my $statsection = qq[<div><strong><span onclick="toggledisplay('statslist','statsmark');" id="statsmark" class="expmark">+</span>
         <span onclick="toggledisplay('statslist','statsmark','expand');">Statistics:</span></strong>
         <div id="statslist" style="display: none;"><ul>
-        <li><a href="./?stats=yesterday&amp;$persistentvars">yesterday</a></li>
-        <li><a href="./?stats=lastweek&amp;$persistentvars">last week</a></li>
-        <li><a href="./?stats=lastmonth&amp;$persistentvars">last month</a></li>
-        <li><a href="./?stats=lastyear&amp;$persistentvars">last year</a></li>
+        <li><a href="./?stats=yesterday&amp;].persist(undef,['magicdate']).qq[">yesterday</a></li>
+        <li><a href="./?stats=lastweek&amp;].persist(undef,['magicdate']).qq[">last week</a></li>
+        <li><a href="./?stats=lastmonth&amp;].persist(undef,['magicdate']).qq[">last month</a></li>
+        <li><a href="./?stats=lastyear&amp;].persist(undef,['magicdate']).qq[">last year</a></li>
         </ul></div></div>];
   my $stylesection = include::sidebarstylesection($currentview);
   return qq[<div class="sidebar">
@@ -2606,7 +2698,7 @@ sub usersidebar {
    $roomsoneweek
    $overview
    <div><strong>Upcoming Events:</strong><ul>
-           <li><a href="./?action=daysclosed&amp;$persistentvars">mark closed date</a></li>
+           <li><a href="./?action=daysclosed&amp;].persist(undef,['magicdate', 'category']).qq[">mark closed date</a></li>
         </ul></div>
    $searchsection
    $aliassection
@@ -2713,27 +2805,24 @@ sub sanitycheckalias {
   # Otherwise, print an error message and exit.
   if (include::isalias($$arec{canon})) {
     print include::standardoutput("Error: Canonical Name Cannot Also Be An Alias",
-                                  qq[<div class="error">Error:
-                                          Thou shalt not use as a canonical name any sequence
-                                          of letters that is also an alias.</div>],
+                                  errordiv('Invalid Alias',
+                                           qq[Thou shalt not use as a canonical name any sequence
+                                          of letters that is also an alias.]),
                                   $ab, $input{usestyle}); exit 0;
   } elsif (findrecord('resched_alias', 'canon', $$arec{alias})) {
     print include::standardoutput("Error: Canonical Name Cannot Also Be An Alias",
-                                  qq[<div class="error">Error:
-                                          Thou shalt not use as an alias any sequence
-                                          of letters that is also a canonical name.</div>],
+                                  errordiv('Invalid Alias',
+                                           qq[Thou shalt not use as an alias any sequence
+                                              of letters that is also a canonical name.]),
                                   $ab, $input{usestyle}); exit 0;
   } elsif (not $$arec{alias}) {
     print include::standardoutput("Error: Alias Field Blank",
-                                  qq[<div class="error">Error:
-                                          Obviously you didn't really mean for the alias field
-                                          to be blank.</div>],
+                                  errordiv('Invalid Alias',
+                                           qq[Obviously you didn't really mean for the alias field to be blank.]),
                                   $ab, $input{usestyle}); exit 0;
   } elsif (not $$arec{canon}) {
     print include::standardoutput("Error: Canonical Name Blank",
-                                  qq[<div class="error">Error:
-                                          Doubleplusungood canonicalname.
-                                          Refs unletters.  Rethink fullwise.</div>],
+                                  errordiv('Invalid Alias', "The canonical name is not allowed to be blank."),
                                   $ab, $input{usestyle}); exit 0;
   } else {
     return $arec;

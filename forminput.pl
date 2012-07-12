@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 # -*- cperl -*-
 
-sub taint {use Taint (); for(@_){Taint::taint($_) if defined $_} return @_;}
+#sub taint {use Taint::Util (); for(@_) { Taint::Util::taint($_) if defined $_ } return @_; }
+use Taint::Util;
 
 sub assembledatetime {
   my ($basename, $inputhash, $timezone, $cleanup) = @_;

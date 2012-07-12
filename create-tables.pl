@@ -91,7 +91,8 @@ $db->prepare(
           fullname   mediumtext,
           nickname   mediumtext,
           prefs      mediumtext,
-          salt       tinytext
+          salt       tinytext,
+          flags      tinytext
      )"
     )->execute();
 
@@ -139,7 +140,8 @@ $db->prepare(
           starttime   datetime,
           endtime     datetime,
           signuplimit integer,
-          flags       tinytext
+          flags       tinytext,
+          notes       longtext,
      )"
      )->execute();
 

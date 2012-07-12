@@ -1,4 +1,78 @@
 See also TODO.txt
+Version 0.8.8:
+  * Dependency change: replaced Taint with Taint::Util, because
+    the latter consistently installs without force.
+  * Added flags field to the users table.  Sites upgrading from
+    earlier versions will need to add the field in order to use it, or
+    any features that rely on it.  So far the only flag with a defined
+    meaning is A, meaning admin; the user's account must have this
+    flag to use the new admin interface or the old config interface.
+  * Speaking of the new admin interface, this release introduces the
+    beginnings of that, with the ability to create and edit schedules
+    and resources.
+  * config.cgi now does entity encoding before storing information in
+    the database, rather than before displaying it.  (This makes
+    certain things easier for the new admin interface.)  If you
+    have HTML metacharacters (especially ampersands and
+    less-than signs) in any of your config values, you may need
+    to re-enter them in config.cgi and save your "changes".
+  * Introduced the errordiv() subroutine, to make construction
+    of user-visible error messages cleaner and more standardized.
+  * Repaired an omission to the always-closed-on-Sundays cleanup.
+    The collision detection code now respects daysclosed config.
+  * Released 2012 July 12.
+Version 0.8.7:
+  * Enhanced parsing of the showwith field to allow category names.
+    This also enhances the ability to list resources in an order
+    other than by database ID (if category showwith is in effect
+    and the resource just booked is itself listed in the category).
+  * Enhanced parsing of the switchwith field to allow category names.
+    The item itself is automatically excluded (since switching a
+    resource with itself would be a no-op, and having the option
+    listed would confuse people).
+  * For both showwith and switchwith, if you leave it blank but
+    have categories defined, you get the first category that
+    contains the just-booked resource by default.  This makes
+    category maintenance easier when you add new resources or
+    phase out old ones.
+  * Always being closed on Sundays is no longer hardcoded.
+    You can set your always-closed days of the week in
+    config.cgi.  (Sundays are the default.)
+  * Closing times are no longer hardcoded (and the defaults
+    have changed).  You can set them via config.cgi.  There
+    is also a provision for opening times (although note that
+    individual schedules can override that).  Setting closing
+    times earlier than the opening times (either the global
+    or schedule ones) will result in "undefined behavior",
+    so don't do that.
+  * Name order for normalization is now configurable, and
+    the default for program signup lists has changed.  The
+    default for normal booking contexts is the same as before.
+    Note that site code for additional normalization is still
+    called after order normalization, so it may receive
+    different input than before, depending on your config.
+  * Added a notes field to the resched_program table.  Sites
+    upgrading from 0.8.x will need to add this field in order
+    to use it.
+  * Released 2012 June 28.
+Version 0.8.6:
+  * Persistent variables are handled better.  They will now only
+    appear in query strings (and forms) when set, and individual
+    variables can be excluded from persistence in certain cases (such
+    as when user input is expected to change them).  This allows a
+    larger number of variables to be made persistent with as few
+    maintainability implications as possible.  Because of the
+    pervasive nature of this change, I expect to find some bugs.
+  * Fixed a typo in config.cgi that caused it to set the wrong
+    variable for config_seconds.
+  * Started work on allowing categories to list resources in an order
+    other than the default.  (Currently, the default order is sorted
+    by database id.)  More work is required to fully complete this
+    capability.
+  * Frequent user lookup now uses the configurable categories.
+  * Added a couple of resources to the default stylesheets.
+  * Names on program signup lists are now normalized and dealiased.
+  * Released 2012 Jun 25
 Version 0.8.5:
   * Added a config variable that lets you set the number
     of seconds after a successful signup before the

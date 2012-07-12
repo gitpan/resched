@@ -275,21 +275,25 @@ code {
   font-family:         "Bitstream Vera Sans Mono", "Lucida Console", "Andale Mono", "Consolas", monospace;
 }
 
+div#programnotes {
+  background-color:    #667F7F;
+  border:              2px outset #667F7F;
+  padding:             0.5em;
+  text-align:          center;
+  margin:              0.5em;
+}
+
 .res3,
 td.content > form.res3
 { /* CR internet */
   background-color:     #7F7F00;
 }
-.res15,
-td.content > form.res15
-{ /* LP internet */
-  background-color:     #332060;
-}
-.res16, .res17,
-td.content > form.res16,
-td.content > form.res17
-{ /* left and right internet */
-  background-color:     #494975;
+
+.res4, .res5,
+td.content > form.res4,
+td.content > form.res5
+{
+  background-color:     #497549;
 }
 
 .res6,
@@ -297,12 +301,7 @@ td.content > form.res6
 { /* CR w.p. */
   background-color:     #7F7F00;
 }
-.res4, .res5,
-td.content > form.res4,
-td.content > form.res5
-{
-  background-color:     #497549;
-}
+
 .res7,
 td.content > form.res7
 { /* typewriter */
@@ -345,6 +344,27 @@ td.content > form.res13
 { /* lecture hall */
   background-color:     #664422;
 }
+
+.res15, .res18,
+td.content > form.res15,
+td.content > form.res18
+{ /* side internet */
+  background-color:     #332060;
+}
+.res16, .res17,
+td.content > form.res16,
+td.content > form.res17
+{ /* left and right internet */
+  background-color:     #494975;
+}
+
+.res19, .res20,
+td.content > form.res19,
+td.content > form.res20
+{
+  background-color:     #497549;
+}
+
 
 
 tr.cfgvar > td {

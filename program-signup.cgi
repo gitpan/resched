@@ -163,6 +163,7 @@ sub programform {
     }
   }
   my $limitsize = ($$record{limit} >= 100) ? 6 : 4;
+  my $notesrows = 3 + int((length $$record{notes}) / 50); $notesrows = 10 if $notesrows > 10;
   return qq[<form action="program-signup.cgi" method="post">\n  $hiddenpersist
   $hidden
   <table class="dbrecord">
@@ -183,6 +184,9 @@ sub programform {
              <span class="explan">(0 means no limit.)</span></td></tr>
      <tr><th><label>Flags:</label></th>
          <td>] . flagcheckboxes($$record{flags}, \%programflag) . qq[</td></tr>
+     <tr><th><label for="programnotes">Notes:</label></th>
+         <td><textarea id="programnotes" name="notes" cols="40" rows="$notesrows">$$record{notes}</textarea></td>
+         <td><span class="explan">Anything you type here will be shown at the top of the signup sheet.</span></td></tr>
   </table>
   <input type="submit" value="$savebutton" />
 </form>];
@@ -202,6 +206,8 @@ sub updateprogram {
     $$prog{starttime}     = DateTime::Format::ForDB($when);
     $$prog{endtime}       = DateTime::Format::ForDB($until);
     $$prog{flags}         = join '', map { $input{"flag" . $_} ? $_ : '' } keys %programflag;
+    $$prog{notes}         = encode_entities($input{notes});
+    $$prog{title}         = encode_entities($input{title});
     ($$prog{signuplimit}) = $input{signuplimit}    =~ /(\d+)/;
     my ($catid)           = $input{category} =~ /(\d+)/;
     my $category          = getrecord('resched_program_category', $catid);
@@ -293,6 +299,7 @@ sub createprogram {
                        starttime => DateTime::Format::ForDB($when),
                        endtime   => DateTime::Format::ForDB($until),
                        flags     => $flags,
+                       notes     => encode_entities($input{notes}),
                       };
     my $result = addrecord('resched_program', $newprogram);
     if ($result) {
@@ -436,10 +443,18 @@ sub showprogram {
     my $title = ($$prog{flags} =~ /X/)
       ? qq[Canceled: $$prog{title} <div>(was scheduled $when)</div>]
       : qq[$$prog{title}, $when];
+    my $notes = $$prog{notes} ? qq[<div id="programnotes">$$prog{notes}</div>] : '';
     my $makerow = sub {
       my ($s) = @_;
       my $flags = showflags($$s{flags}, \%signupflag);
-      return qq[<tr class="signup"><td class="numeric">$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$$s{attender}</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>\n      ]
+      my $usealt = getvariable('resched', 'signup_sheets_use_alt_norm');
+      $usealt = 1 if not defined $usealt;
+      my $order    = $usealt ? (getvariable('resched', 'alternate_name_order') || 1)
+                             : (getvariable('resched', 'normal_name_order') || 0);
+      my $normal   = include::normalisebookedfor($$s{attender}, $order);
+      my $attender = include::capitalise(include::dealias($normal));
+      #use Data::Dumper; warn Dumper(+{ usealt => $usealt, order => $order, raw => $$s{attender}, normal => $normal, final => $attender });
+      return qq[<tr class="signup"><td class="numeric">$$s{num}</td><td><a href="program-signup.cgi?action=editsignup&amp;id=$$s{id}&amp;$persistentvars">$attender</a></td><td>$$s{phone}</td><td>$flags</td><td>$$s{comments}</td></tr>\n      ]
     };
     my $existingsignups = join "", map { $makerow->($_) } @signup;
     my $waitlistsignups = join "", map { $makerow->($_) } @waitlist;
@@ -451,6 +466,7 @@ sub showprogram {
        <span class="programcategory">(category: $$category{category})</span></div>
   <div id="programtotal">$howmany</div>
 </div>
+$notes
 <form action="program-signup.cgi" method="post">\n  $hiddenpersist
     <input type="hidden" name="program" value="$id" />
     <input type="hidden" name="action" value="dosignup" />

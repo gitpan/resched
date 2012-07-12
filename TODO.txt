@@ -1,16 +1,15 @@
 Desired Changes:
- * Currently, the fact that we're closed on Sundays is hardcoded.
-   Days of the week when you're always closed should instead be
-   configurable in config.cgi.  Changes would be needed in overview()
-   and maybe other places, plus config.cgi.
- * Opening and closing times are hardcoded.  They should not be.
+ * Make alternate name order available by clicking a link.
+ * Incorrectly specifying openingtimes or closingtimes should
+   result in a MUCH friendlier error message.  Also, there
+   should be a wizard or utility for putting the specs together.
+ * Would like to sanity check date number inputs before storing
+   them in the database.  If anybody finds a way to get an
+   invalid date into the db, it could cause denial-of-service.
  * Provide a statistical_categories variable, just like
    categories but used only by the statistics (not sidebar stuff)
    and in preference to categories.
- * Figure out why the AJAX-based Quick feature doesn't work with MSIE,
-   and fix that.  (I suspect it's due to the same issue I previously
-   fixed in the forum software, and I can probably bring the same
-   fix over from there.)
+ * Test recent versions of IE.
  * After a suitable deprecation period, we should remove support in
    auth.pl for checking the deprecated (unhashed) password field.  The
    hashedpass field should be used instead.
@@ -21,12 +20,8 @@ Desired Changes:
    to be attached to specific patrons (rather than just certain
    bookings) and appear any time they book anything.
  * Various things are hardcoded that should not be, e.g., URLs,
-   opening and closing times, meeting room equipment available,
-   some of the stuff in the sidebar, ...
- * General refactoring would not go amiss.  Among other things,
-   a lot of actions in the big if/elsif/elsif block ought to be
-   factored out to subroutines.
- * Too much of the sidebar is too hardcoded.
+   meeting room equipment available, some of the stuff in the sidebar, ...
+ * General refactoring would not go amiss.
  * It would be really cool if it could use NCIP or something
    to consult the ILS patron database.  If we could just
    scan a barcode, and it would look it up and display the
@@ -44,3 +39,9 @@ Desired Changes:
    custom SQL in the gatherstatsforadaterange function.
  * The tutorial has never been written, and probably
    should be, and a link added to the sidebar.
+ * Implement the ability for users to change their passwords,
+   and for the admin to set temporary passwords that must be
+   changed before the user can do anything else.
+ * There should be an admin interface (similar in principle
+   to config.cgi) for setting up schedules and resources,
+   maybe also users.
