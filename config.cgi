@@ -31,7 +31,7 @@ my %cfgvar =
                      sortkey     => 12,
                     },
    closingtimes => +{
-                     default     => '0:12.00,1-2:20:00,3:15:00,4-5:20:00,6:15:00',
+                     default     => '0:12:00,1-2:20:00,3:15:00,4-5:20:00,6:15:00',
                      description => 'List of what time you normally close up at night, for each day of the week, separated by commas.  Each day is specified in the form n:h:m where n is the number from 0 to 6 indicating day of week (or a hyphenated range thereof), h is the hour in 24-hour time, and m is the number of minutes past the hour.',
                      sortkey     => 13,
                     },
@@ -57,6 +57,7 @@ my %cfgvar =
    sidebar_post_today => +{ default     => '',
                             description => 'Wellformed XHTML snippet to insert in the sidebar between the Today section and the Rooms (1 week) section.  Must be allowable inside a block-level element.',
                             multiline   => 1, sortkey => 220,
+                            allow_xhtml => 1,
                           },
    max_sidebar_programs => +{
                              default     => 12,
@@ -83,6 +84,16 @@ my %cfgvar =
                                description => 'Should the booking timestamp be shown? (1=yes, 0=no)',
                                sortkey     => 501,
                               },
+   allow_extend_past_midnight => +{
+                                   default     => 0,
+                                   description => 'Allow bookings to be extended beyond midnight into a new day? (1=yes, 0=no)',
+                                   sortkey     => 502,
+                                  },
+   confirm_extend_past_midnight => +{
+                                     default     => 0,
+                                     description => 'Prompt for confirmation when extending a booking beyond midnight? (1=yes, 0=no)',
+                                     sortkey     => 503,
+                                    },
    redirect_seconds => +{
                          description  => 'After signing someone up, resched shows the adjusted schedule or signup sheet; however, since hitting refresh would result in performing the action again, resched redirects after a few seconds to a fresh copy of the schedule or signup sheet.  This controls how many seconds it waits before doing so.',
                          default      => 15,
@@ -150,6 +161,9 @@ sub savechanges {
   for my $var (keys %cfgvar) {
     my $oldvalue = getvariable('resched', $var);
     my $newvalue = encode_entities($input{'cfgvar_'.$var});
+    if ($cfgvar{$var}{allow_xhtml}) {
+      $newvalue = $input{'cfgvar_'.$var};
+    }
     if ($newvalue ne $oldvalue) {
       setvariable('resched', $var, $newvalue) if $newvalue ne $oldvalue;
       ++$changecount;

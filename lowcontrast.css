@@ -275,6 +275,11 @@ div#programnotes {
   text-align:          center;
   margin:              0.5em;
 }
+div.overviewheader {
+  margin:              1em;
+  margin-top:          0;
+  text-align:          center;
+}
 
 .res3,
 td.content > form.res3

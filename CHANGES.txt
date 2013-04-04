@@ -1,4 +1,23 @@
 See also TODO.txt
+Version 0.9.0:
+  * Month overview now lists which resources it's for at the top
+    of the page.
+  * Fixed a bug in config.cgi that did not allow markup in the
+    custom section of the sidebar.  (MOST config variables are
+    supposed to have entities encoded, but not that one.)
+  * Fixed a bug that prevented the redirect header and message
+    to the user from being sent in some cases.
+  * Added two new config variables to control the special case
+    of extending a booking past midnight.  By default, it is
+    now disallowed, as this results in less user confusion.
+    (An optimization prevents a booking that started on a
+    previous day from showing up on a day's booking schedule;
+    users think this means the resource is unavailable and
+    often become confused when told that it is already booked;
+    that message has the start date and time, but users don't
+    necessarily read that far.  If you enable booking past
+    midnight, you should inform your users about this.)
+  * Released 2013 March 05.
 Version 0.8.8:
   * Dependency change: replaced Taint with Taint::Util, because
     the latter consistently installs without force.

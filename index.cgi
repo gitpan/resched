@@ -36,12 +36,12 @@ my $ab = authbox(sub { my $x = getrecord('users', shift); "<!-- Hello, $$x{nickn
 my @warn; # scoped this way because sub nextrecur pushes warnings onto it in certain cases.
 my $uniqueid = 101;
 my $didyoumean_invoked;
+my ($messagetouser, $redirectheader) = ('', '');
 
 if ($auth::user) {
   # ****************************************************************************************************************
   # User is authorized as staff.
   my %user = %{getrecord('users',$auth::user)}; # Some things below want to know which staff.
-  my ($messagetouser, $redirectheader) = ('', '');
   if ($input{extend}) {
     ($messagetouser, $redirectheader) = extendbooking();
     # Note: extendbooking() kludges %input:
@@ -556,78 +556,86 @@ sub viewbooking {
         $newb{bookedby}=$user{id}; $newb{id} = $b{id};
         $newb{fromtime} = DateTime::Format::ForDB($newb{fromtime_datetime});
         $newb{until}    = DateTime::Format::ForDB($newb{until_datetime});
-        if ($input{latestart}) {
-          warn "latestart has a value: $input{latestart}" if $debug;
-          $newb{latestart} = DateTime::Format::ForDB(DateTime->new(
-                                                                   year   => $newb{fromtime_datetime}->year,
-                                                                   month  => $newb{fromtime_datetime}->month,
-                                                                   day    => $newb{fromtime_datetime}->mday,
-                                                                   hour   => $input{booking_late_datetime_hour},
-                                                                   minute => $input{booking_late_datetime_minute},
-                                                                  ));
-        }
-        if ($input{doneearlycheckbox}) {
-          warn "doneearlycheckbox has a value: $input{doneearlycheckbox}" if $debug;
-          $newb{doneearly} = DateTime::Format::ForDB(DateTime->new(
-                                                                   year   => $newb{until_datetime}->year,
-                                                                   month  => $newb{until_datetime}->month,
-                                                                   day    => $newb{until_datetime}->mday,
-                                                                   hour   => $input{booking_doneearly_datetime_hour},
-                                                                   minute => $input{booking_doneearly_datetime_minute},
-                                                                  ));
-          if ($input{followupname}) {
-            my %fb;
-            if ($b{followedby}) {
-              %fb = %{getrecord('resched_bookings', $b{followedby})};
-            } else {
-              $fb{resource} = $b{resource};
-              $fb{isfollowup} = $b{id};
-            }
-            $fb{staffinitials} = $input{followupstaffinitials} || $fb{staffinitials} || $input{staffinitials} || $newb{staffinitials};
-            $fb{bookedfor} = include::dealias(include::normalisebookedfor($input{followupname}));
-            if ((lc $fb{bookedfor}) ne (lc $input{followupname})) {
-              $fb{notes} = ($fb{notes} ? ($fb{notes} . "\n") : '')
-                . encode_entities("($input{followupname})");
-            }
-            $fb{bookedby} = $user{id};
-            $fb{until} = $newb{until}; $fb{fromtime} = $newb{doneearly};
-            if ($fb{id}) {
-              # Update extant followup:
-              my @changes = @{updaterecord('resched_bookings', \%fb)};
-              if (@changes) {
-                push @bookinglisting, qq[<div class="info">The following changes were made to the
+        my $origuntil = DateTime::From::MySQL($b{until});
+        my $newuntil  = $newb{until_datetime};
+        if (($origuntil->mday ne $newuntil->mday)
+            and not getvariable('resched', 'allow_extend_past_midnight')) {
+          warn "Tried to extend past midnight, not allowed.";
+          push @bookinglisting, "" . include::errordiv('Cannot Extend Past Midnight', qq[Extending a booking past midnight into a new day is not supported.  Please see the recurring booking options if what you really want is to book the same resource at the same time on multiple days.]);
+        } else {
+          if ($input{latestart}) {
+            warn "latestart has a value: $input{latestart}" if $debug;
+            $newb{latestart} = DateTime::Format::ForDB(DateTime->new(
+                                                                     year   => $newb{fromtime_datetime}->year,
+                                                                     month  => $newb{fromtime_datetime}->month,
+                                                                     day    => $newb{fromtime_datetime}->mday,
+                                                                     hour   => $input{booking_late_datetime_hour},
+                                                                     minute => $input{booking_late_datetime_minute},
+                                                                    ));
+          }
+          if ($input{doneearlycheckbox}) {
+            warn "doneearlycheckbox has a value: $input{doneearlycheckbox}" if $debug;
+            $newb{doneearly} = DateTime::Format::ForDB(DateTime->new(
+                                                                     year   => $newb{until_datetime}->year,
+                                                                     month  => $newb{until_datetime}->month,
+                                                                     day    => $newb{until_datetime}->mday,
+                                                                     hour   => $input{booking_doneearly_datetime_hour},
+                                                                     minute => $input{booking_doneearly_datetime_minute},
+                                                                    ));
+            if ($input{followupname}) {
+              my %fb;
+              if ($b{followedby}) {
+                %fb = %{getrecord('resched_bookings', $b{followedby})};
+              } else {
+                $fb{resource} = $b{resource};
+                $fb{isfollowup} = $b{id};
+              }
+              $fb{staffinitials} = $input{followupstaffinitials} || $fb{staffinitials} || $input{staffinitials} || $newb{staffinitials};
+              $fb{bookedfor} = include::dealias(include::normalisebookedfor($input{followupname}));
+              if ((lc $fb{bookedfor}) ne (lc $input{followupname})) {
+                $fb{notes} = ($fb{notes} ? ($fb{notes} . "\n") : '')
+                  . encode_entities("($input{followupname})");
+              }
+              $fb{bookedby} = $user{id};
+              $fb{until} = $newb{until}; $fb{fromtime} = $newb{doneearly};
+              if ($fb{id}) {
+                # Update extant followup:
+                my @changes = @{updaterecord('resched_bookings', \%fb)};
+                if (@changes) {
+                  push @bookinglisting, qq[<div class="info">The following changes were made to the
                        <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>:<ul>
                        ].(join "\n", map {
                          qq[           <li>Changed $$_[0] to $$_[1] (was $$_[2])<!-- result: $$_[3] --></li>]
                        } @changes).qq[</ul></div>];
-              } else {
-                # No changes were made to the followup.
-                push @bookinglisting, qq[<p class="info">No changes were made to the
+                } else {
+                  # No changes were made to the followup.
+                  push @bookinglisting, qq[<p class="info">No changes were made to the
                         <a href="./?booking=$fb{id}&amp;$persistentvars">followup booking</a>.
                         </p>];
-              }
-            } else {
-              # Add it new:
-              my $result = addrecord('resched_bookings', \%fb);
-              $newb{followedby} = $db::added_record_id;
-              push @bookinglisting, qq[<p class="info">Added <a href="./?booking=$newb{followedby}&amp;$persistentvars">followup booking</a><!-- Result: $result -->.</p>];
-            }}
-          # The changes to the main record will be made below,
-          # outside the if clause, because even if doneearly doesn't
-          # change, the other changes still must be made.
-        }
+                }
+              } else {
+                # Add it new:
+                my $result = addrecord('resched_bookings', \%fb);
+                $newb{followedby} = $db::added_record_id;
+                push @bookinglisting, qq[<p class="info">Added <a href="./?booking=$newb{followedby}&amp;$persistentvars">followup booking</a><!-- Result: $result -->.</p>];
+              }}
+            # The changes to the main record will be made below,
+            # outside the if clause, because even if doneearly doesn't
+            # change, the other changes still must be made.
+          }
 
-        my @changes = @{updaterecord('resched_bookings', \%newb)};
-        if (@changes) {
-          push @bookinglisting, qq[<div class="info">The following changes were made: <ul>] . (join $/, map {"<li>Changed $$_[0]
+          my @changes = @{updaterecord('resched_bookings', \%newb)};
+          if (@changes) {
+            push @bookinglisting, qq[<div class="info">The following changes were made: <ul>] . (join $/, map {"<li>Changed $$_[0]
               to ".encode_entities($$_[1])." (was ".encode_entities($$_[2]).")<!-- ".encode_entities($$_[3])." --></li>"} @changes) . "</ul></div>";
-        } elsif ($input{followupname}) {
-          push @bookinglisting, qq[<div class="info">No changes were made to the main booking.</div>];
-        } else {
-          push @bookinglisting, include::errordiv('No Changes', qq[No changes were made!]);#@DateTime::NormaliseInput::Debug";
-          push @bookinglisting, "<!-- newb: $/".(join$/,map{"\t$_\t => $b{$_}"} keys %b)." -->" if $debug;
+          } elsif ($input{followupname}) {
+            push @bookinglisting, qq[<div class="info">No changes were made to the main booking.</div>];
+          } else {
+            push @bookinglisting, include::errordiv('No Changes', qq[No changes were made!]);#@DateTime::NormaliseInput::Debug";
+            push @bookinglisting, "<!-- newb: $/".(join$/,map{"\t$_\t => $b{$_}"} keys %b)." -->" if $debug;
+          }
+          %b = %{getrecord('resched_bookings', $b{id})}; # Refresh the record, so we have it with the changes made.
         }
-        %b = %{getrecord('resched_bookings', $b{id})}; # Refresh the record, so we have it with the changes made.
       }
       my %r = %{getrecord('resched_resources', $b{resource})};
       my %res = map { $_ => encode_entities($r{$_}) } keys %r;
@@ -1195,7 +1203,8 @@ sub overview {
          <input type="submit" value="Go" />
       </form>
     ];
-  return ((join "\n", @calendar), "Overview");
+  my $labeltext = join ", ", map { qq[<span class="resourcename">${$res{$_}}{name}</span>] } @res;
+  return (qq[<div class="overviewheader">Overview: $labeltext</div>] . (join "\n", @calendar), "Overview");
 }
 
 sub daysclosed {
@@ -1516,7 +1525,7 @@ sub doview {
         $$c{bookingcount}[$ts] = $bookingcount;
         $$c{tdcontent}[$ts] .= "<!-- and now the done early link: -->"; my $donetext = "done early?";
         my $extendlink = '';
-        $extendlink = '<a href="./?'."extend=$$x{id}&amp;$persistentvars".'"><img src="/img/arrow-down-blue-v2.png" class="extendarrow" width="36" height="21" /></a>';
+        $extendlink = qq[<a href="./?extend=$$x{id}&amp;$persistentvars"><img src="/img/arrow-down-blue-v2.png" class="extendarrow" width="36" height="21" /></a>];
         if ($$x{doneearly}) {
           my $doneat = include::twelvehourtimefromdt(DateTime::From::MySQL($$x{doneearly}));
           $donetext = "(available at $doneat)";
@@ -1933,21 +1942,40 @@ sub extendbooking {
          } include::check_for_collision_using_datetimes($resource{id}, $when, $newuntil))) {
     $newuntil = $newuntil->subtract(minutes => $schedule{intervalmins});
   }
+  my $view = join ",", parseshowwith($resource{showwith}, $resource{id});
   # Kludge input so that the results actually get displayed:
-  $input{view} ||= join ",", parseshowwith($resource{showwith}, $resource{id});
+  $input{view} ||= $view;
   $input{year} ||= $when->year(); $input{month} ||= $when->month(); $input{mday} ||= $when->mday();
-  # Now return a message that says whether it worked or not:
-  if ($newuntil > $until) {
-    $booking{until} = DateTime::Format::MySQL->format_datetime($newuntil);
-    @changes = @{updaterecord('resched_bookings', \%booking)};
-    return qq[<div class="info">The booking has been extended.</div>],
-      redirect_header(\%resource, $when, 30);
+  if (($newuntil->mday ne $until->mday)
+      and (not getvariable('resched', 'allow_extend_past_midnight'))) {
+    return include::errordiv('Cannot Extend Past Midnight',
+                             qq[Extending the booking past midnight into a new day is not supported.  Please see the recurring booking options if what you really want is to book the same resource at the same time on multiple days.],
+                            ),
+                              undef; # No redirect in this case.
+  }
+  elsif (($newuntil->mday ne $until->mday)
+      and (getvariable('resched', 'confirm_extend_past_midnight'))
+      and not ($input{confirm} =~ /pastmidnight/)) {
+    return include::confirmdiv('Extend Past Midnight?',
+                               qq[<div class="p">Did you really intend to extend this booking past midnight into a new day?</div>
+                                  <div class="p">
+                                     <a class="button" href="./?confirm=pastmidnight&amp;$persistentvars&amp;extend=$input{extend}">Confirm: Extend Past Midnight</a>
+                                     <a class="button" href="./?$persistentvars&amp;view=$view&amp;year=].$when->year().qq[&amp;month=].$when->month().qq[&amp;mday=].$when->mday().qq[">Wait, what?</a>
+                                  </div>]),
+                                 undef; # No redirect in this case.
   } else {
-    # No Can Do.
-    return include::errordiv('Booking Conflict', qq[Booking #$booking{id} cannot be extended, due to the following scheduling conflict(s) for the $resource{name}.<ul>
+    if ($newuntil > $until) {
+      $booking{until} = DateTime::Format::MySQL->format_datetime($newuntil);
+      @changes = @{updaterecord('resched_bookings', \%booking)};
+      return qq[<div class="info">The booking has been extended.</div>],
+        redirect_header(\%resource, $when, 30);
+    } else {
+      # No Can Do.
+      return include::errordiv('Booking Conflict', qq[Booking #$booking{id} cannot be extended, due to the following scheduling conflict(s) for the $resource{name}.<ul>
       ] .(join "\n", map { "<li>$$_{id} ($$_{bookedfor}) from $$_{fromtime} until $$_{until}</li>" } @collision). "</ul>  Sorry!"),
         undef; # No redirect in this instance
-  }
+    }
+}
 }
 
 sub daysclosedform {

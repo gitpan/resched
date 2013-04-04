@@ -275,6 +275,11 @@ div#programnotes {
   text-align:          center;
   margin:              0.5em;
 }
+div.overviewheader {
+  text-align:          center;
+  margin:              1em;
+  margin-top:          0;
+}
 
 
 .res3,
