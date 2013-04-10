@@ -99,6 +99,11 @@ my %cfgvar =
                          default      => 15,
                          sortkey      => 551,
                         },
+   automatic_late_start_time => +{
+                                  description => 'When making a booking using the short ("quick") form, if the booking is made during the timeslot, automatically fill in the Starting Late information with the current time.  0 = No, 1 = Yes.',
+                                  default     => 0,
+                                  sortkey     => 580,
+                                 },
    program_signup_waitlist => +{
                                 default     => 1,
                                 description => 'If the number of people signed up for a program reaches the limit, do we allow more names to be taken for a waiting list?  0 = No, 1 = Yes.  Either way, it can be changed on a per-program basis with the W flag, but new programs are created according to this preference.',

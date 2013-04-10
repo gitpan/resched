@@ -172,10 +172,10 @@ sub standardoutput {
 $include::doctype
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-   <!--  This page is served by resched, the Resource Scheduling tool.  -->
-   <!--  Created by Nathan Eady for Galion Public Library.              -->
-   <!--  resched version 0.9.0 vintage 2013 March 05.                   -->
-   <!--  http://cgi.galion.lib.oh.us/staff/resched-public/              -->
+   <!--  This page is served by Galion ReSched, a Resource Scheduling tool.  -->
+   <!--  Created by Nathan Eady for Galion Public Library.                   -->
+   <!--  Galion ReSched version 0.9.1 vintage 2013 April 10.                 -->
+   <!--  http://cgi.galion.lib.oh.us/staff/resched-public/                   -->
    <title>$title</title>
    <link rel="SHORTCUT ICON" href="$favicon" />
    $ajaxscript

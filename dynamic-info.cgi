@@ -161,10 +161,11 @@ sub sendnewbookingform {
     my $focid = 'foc' . join '', map { (qw(a b c d e f g h i j k l m n o p q r s t u v w x y z))[1 + rand 25] } 1..13;
     sendreplace($input{containerid},
                 qq[<span class="dynamic_content"><form action="index.cgi" method="post">
-                     <input type="hidden" name="action"   value="makebooking" />
-                     <input type="hidden" name="when"     value="$when" />
-                     <input type="hidden" name="resource" value="$res{id}" />
-                     <input type="hidden" name="usestyle" value="$input{usestyle}" />
+                     <input type="hidden" name="action"       value="makebooking" />
+                     <input type="hidden" name="when"         value="$when" />
+                     <input type="hidden" name="resource"     value="$res{id}" />
+                     <input type="hidden" name="usestyle"     value="$input{usestyle}" />
+                     <input type="hidden" name="dynamicform"  value="yes" />
                      <input type="text" name="bookedfor" size="20" id="$focid" />
                      $untilinput
                      <span class="nobr">initial:<input type="text" size="3" name="staffinitials" maxsize="20" /></span>

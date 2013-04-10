@@ -548,6 +548,7 @@ sub viewbooking {
     if (/(\d+)/) {
       my %b = %{getrecord('resched_bookings', $1)};
       $b{id} or warn 'Tribbles and Warm Milk (booking record has no id in viewbooking())';
+      #use Data::Dumper; warn Dumper(\%b);
       if ($input{action} eq 'changebooking') {
         # First change the booking and push the change results onto @bookinglisting.
         # The view/change stuff will follow below, being pushed on afterward.
@@ -669,6 +670,7 @@ sub viewbooking {
       my $ts = ((getvariable('resched', 'show_booking_timestamp')
                  ? qq[ <span class="tsmod">last modified $b{tsmod}</span>]
                  : ''));
+      #use Data::Dumper; warn Dumper(\%b);
       push @bookinglisting, qq[<form action="./" method="post">
            <input type="hidden" name="booking" value="$b{id}" />
            <input type="hidden" name="action" value="changebooking" />
@@ -689,7 +691,8 @@ sub viewbooking {
                                      </td></tr>
               <tr><td>From<sup><a href="#footnote1">1</a></sup>:</td>
                   <td>].(DateTime::Form::Fields($fromdt, 'booking_fromtime',undef,undef,'FieldsK')).qq[</td>
-                  <td><input type="checkbox" name="latestart" ".($b{latestart} ? ' checked="checked" ' : '')." />&nbsp;Started late at
+                  <td><input type="checkbox" name="latestart" ]
+                    .($b{latestart} ? ' checked="checked" ' : '').qq[ />&nbsp;Started late at
                       ].(DateTime::Form::Fields($latedt, 'booking_late', 'skipdate',undef,'FieldsL')).qq[</td></tr>
               <tr><td>Until<sup><a href="#footnote2">2</a></sup>:</td>
                   <td>].(DateTime::Form::Fields($untidt, 'booking_until',undef,undef,'FieldsM')).qq[</td>
@@ -2299,11 +2302,12 @@ sub attemptbooking {
       }
       if ($hour) {
         $until = DateTime->new(
-                               year   => $when->year,
-                               month  => $when->month,
-                               day    => $when->mday,
-                               hour   => $hour,
-                               minute => $min,
+                               time_zone => $include::localtimezone,
+                               year      => $when->year,
+                               month     => $when->month,
+                               day       => $when->mday,
+                               hour      => $hour,
+                               minute    => $min,
                               );
       } else {
         # It wasn't specified, so default to a timeslot durationmins long:
@@ -2382,17 +2386,32 @@ sub attemptbooking {
     }
     if ($input{latestart}) {
       my $late = DateTime->new(
-                               year    => $when->year,
-                               month   => $when->month,
-                               day     => $when->day,
-                               hour    => $input{latehour},
-                               minute  => $input{lateminute},
+                               time_zone => $include::localtimezone,
+                               year      => $when->year,
+                               month     => $when->month,
+                               day       => $when->day,
+                               hour      => $input{latehour},
+                               minute    => $input{lateminute},
                               );
       if (($when->hour >= 12)
           and ($late->hour < 12)) {
         $late = $late->add( hours => 12 );
       }
       $booking{latestart} = DateTime::Format::ForDB($late);
+    } elsif ($input{dynamicform} and getvariable('resched', 'automatic_late_start_time')) {
+      # Do implicit late start if AND ONLY IF we are making the booking during the timeslot.
+      my $now = DateTime->now(time_zone => $include::localtimezone);
+      if (($now >= $when) and ($now <= $until)) {
+        my $late = DateTime->new(
+                                 time_zone => $include::localtimezone,
+                                 year      => $when->year,
+                                 month     => $when->month,
+                                 day       => $when->day,
+                                 hour      => $now->hour,
+                                 minute    => $now->minute,
+                              );
+        $booking{latestart} = DateTime::Format::ForDB($late);
+      }
     }
     my $result = addrecord('resched_bookings',\%booking);
 
@@ -2402,7 +2421,7 @@ sub attemptbooking {
             </div>];
     if ($didyoumean_enabled) {
       my $name = include::normalisebookedfor($input{bookedfor});
-      if ($name =~ /^\s*\w+\s*$/ and not ($name =~ /maintenance|visitor|guest|patron|testing|CLOSED/i)) {
+      if ($name =~ /^\s*\w+\s*$/ and not ($name =~ /maintenance|visitor|guest|patron|staff|testing|CLOSED/i)) {
         # Extreme laziness: only a single word has been entered (e.g.,
         # only a first name, only a last name, or cetera). I am sorely
         # tempted to just reject these outright, but for the time
@@ -2411,6 +2430,7 @@ sub attemptbooking {
         #   * 'maintenance' is used when I need to keep the system free so I can do maintenance on it; there is nothing more to say.
         #   * 'testing', similarly, is not a real patron but is used for test bookings mainly in the practice zone.
         #   * 'patron', 'visitor', and 'guest' are either deliberately vague or represent a genuine lack of knowledge, not just being too lazy to type the rest of the name.
+        #   * 'staff' implies it's being used for library purposes, so not available for patrons
         #   * 'CLOSED' has obvious special meaning.
         my %result;
         for my $res (map { $$_{bookedfor} } searchrecord('resched_bookings', 'bookedfor', $name)) {
